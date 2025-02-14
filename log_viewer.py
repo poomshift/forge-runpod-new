@@ -11,8 +11,10 @@ import sys
 import platform
 import zipfile
 import io
+from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Global variables to store stats and logs
 system_stats = {
@@ -91,6 +93,9 @@ def update_system_stats():
             
             system_stats['timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
+            # Emit system stats via WebSocket
+            socketio.emit('system_stats', system_stats)
+            
             time.sleep(2)  # Update every 2 seconds
         except Exception as e:
             print(f"Error updating system stats: {e}")
@@ -134,12 +139,17 @@ def tail_log_file():
                 if len(log_buffer) > 500:
                     log_buffer[:] = log_buffer[-500:]
             
+            # Emit initial logs
+            socketio.emit('logs', {'logs': get_current_logs()})
+            
             # Then follow the file for new content
             for line in follow(file):
                 with log_lock:
                     log_buffer.append(line.strip())
                     if len(log_buffer) > 500:
                         log_buffer.pop(0)
+                # Emit new log line via WebSocket
+                socketio.emit('new_log_line', {'line': line.strip()})
     except Exception as e:
         print(f"Error tailing log file: {e}")
         time.sleep(5)
@@ -751,7 +761,9 @@ HTML_TEMPLATE = '''
         </div>
         -->
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
+        let socket;
         let refreshInterval;
         let autoScroll = true;
         let lastScrollPosition = 0;
@@ -786,53 +798,85 @@ HTML_TEMPLATE = '''
             themeToggle.checked = savedTheme === 'dark';
         }
 
+        function initializeWebSocket() {
+            socket = io();
+            
+            // Handle system stats updates
+            socket.on('system_stats', function(stats) {
+                updateSystemStatsDisplay(stats);
+            });
+            
+            // Handle new log lines
+            socket.on('new_log_line', function(data) {
+                appendLogLine(data.line);
+            });
+            
+            // Handle complete log updates
+            socket.on('logs', function(data) {
+                document.getElementById('log-container').innerHTML = data.logs;
+                if (autoScroll) {
+                    scrollToBottom(document.getElementById('log-container'));
+                }
+            });
+        }
+        
+        function appendLogLine(line) {
+            const logContainer = document.getElementById('log-container');
+            logContainer.innerHTML += line + '\\n';
+            
+            // Trim old logs if too many lines
+            const maxLines = 500;
+            let lines = logContainer.innerHTML.split('\\n');
+            if (lines.length > maxLines) {
+                lines = lines.slice(-maxLines);
+                logContainer.innerHTML = lines.join('\\n');
+            }
+            
+            if (autoScroll && !userScrolled) {
+                scrollToBottom(logContainer);
+            }
+        }
+        
+        function updateSystemStatsDisplay(stats) {
+            // Update CPU
+            document.getElementById('cpu-model').textContent = 
+                `${stats.cpu.model}${stats.cpu.frequency ? ` @ ${stats.cpu.frequency.toFixed(2)} MHz` : ''}`;
+            document.getElementById('cpu-usage').textContent = `${stats.cpu.percent.toFixed(1)}%`;
+            document.getElementById('cpu-bar').style.width = `${stats.cpu.percent}%`;
+            
+            // Update Memory
+            document.getElementById('memory-usage').textContent = 
+                `${stats.memory.used}GB / ${stats.memory.total}GB (${stats.memory.percent}%)`;
+            document.getElementById('memory-bar').style.width = `${stats.memory.percent}%`;
+            
+            // Update GPU
+            document.getElementById('gpu-name').textContent = stats.gpu.name;
+            document.getElementById('gpu-usage').textContent = 
+                `${stats.gpu.percent.toFixed(1)}% | ${stats.gpu.memory_used}MB / ${stats.gpu.memory_total}MB`;
+            document.getElementById('gpu-temp').textContent = `${stats.gpu.temp}°C`;
+            document.getElementById('gpu-bar').style.width = `${stats.gpu.percent}%`;
+            
+            // Update Disk
+            document.getElementById('disk-usage').textContent = 
+                `${stats.disk.used}GB / ${stats.disk.total}GB (${stats.disk.percent}%)`;
+            document.getElementById('disk-bar').style.width = `${stats.disk.percent}%`;
+            
+            // Update timestamp
+            document.getElementById('last-update').textContent = `Last updated: ${stats.timestamp}`;
+        }
+        
         function startAutoRefresh() {
             const seconds = parseInt(document.getElementById('refresh-interval').value);
             if (seconds < 1) {
                 alert('Please enter a valid number of seconds (minimum 1)');
                 return;
             }
-            
-            if (refreshInterval) {
-                clearInterval(refreshInterval);
-            }
-            
-            refreshInterval = setInterval(() => {
-                refreshLogs();
-                updateSystemStats();
-            }, seconds * 1000);
-            
             updateStatus(seconds);
         }
         
         function updateStatus(seconds) {
             document.getElementById('status').textContent = 
                 `Auto-refreshing every ${seconds} seconds`;
-        }
-        
-        function refreshLogs() {
-            fetch('/logs?t=' + new Date().getTime())
-                .then(response => response.json())
-                .then(data => {
-                    const logContainer = document.getElementById('log-container');
-                    
-                    // Store current scroll position and height
-                    const wasScrolledToBottom = isScrolledToBottom(logContainer);
-                    
-                    // Update content
-                    logContainer.innerHTML = data.logs;
-                    
-                    // Auto-scroll logic
-                    if (autoScroll && !userScrolled) {
-                        scrollToBottom(logContainer);
-                    } else if (wasScrolledToBottom) {
-                        scrollToBottom(logContainer);
-                    }
-                });
-        }
-        
-        function isScrolledToBottom(element) {
-            return Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) < 10;
         }
         
         function scrollToBottom(element) {
@@ -846,38 +890,6 @@ HTML_TEMPLATE = '''
                 const logContainer = document.getElementById('log-container');
                 scrollToBottom(logContainer);
             }
-        }
-        
-        function updateSystemStats() {
-            fetch('/system_stats?t=' + new Date().getTime())
-                .then(response => response.json())
-                .then(stats => {
-                    // Update CPU
-                    document.getElementById('cpu-model').textContent = 
-                        `${stats.cpu.model}${stats.cpu.frequency ? ` @ ${stats.cpu.frequency.toFixed(2)} MHz` : ''}`;
-                    document.getElementById('cpu-usage').textContent = `${stats.cpu.percent.toFixed(1)}%`;
-                    document.getElementById('cpu-bar').style.width = `${stats.cpu.percent}%`;
-                    
-                    // Update Memory
-                    document.getElementById('memory-usage').textContent = 
-                        `${stats.memory.used}GB / ${stats.memory.total}GB (${stats.memory.percent}%)`;
-                    document.getElementById('memory-bar').style.width = `${stats.memory.percent}%`;
-                    
-                    // Update GPU
-                    document.getElementById('gpu-name').textContent = stats.gpu.name;
-                    document.getElementById('gpu-usage').textContent = 
-                        `${stats.gpu.percent.toFixed(1)}% | ${stats.gpu.memory_used}MB / ${stats.gpu.memory_total}MB`;
-                    document.getElementById('gpu-temp').textContent = `${stats.gpu.temp}°C`;
-                    document.getElementById('gpu-bar').style.width = `${stats.gpu.percent}%`;
-                    
-                    // Update Disk
-                    document.getElementById('disk-usage').textContent = 
-                        `${stats.disk.used}GB / ${stats.disk.total}GB (${stats.disk.percent}%)`;
-                    document.getElementById('disk-bar').style.width = `${stats.disk.percent}%`;
-                    
-                    // Update timestamp
-                    document.getElementById('last-update').textContent = `Last updated: ${stats.timestamp}`;
-                });
         }
         
         function controlComfyUI(action) {
@@ -936,6 +948,8 @@ HTML_TEMPLATE = '''
         
         document.addEventListener('DOMContentLoaded', function() {
             initializeTheme();
+            initializeWebSocket();
+            
             const logContainer = document.getElementById('log-container');
             
             // Handle manual scrolling
@@ -950,7 +964,7 @@ HTML_TEMPLATE = '''
             // Initialize auto-refresh
             document.getElementById('refresh-interval').value = 5;
             startAutoRefresh();
-            updateSystemStats();
+            updateSystemStatsDisplay(system_stats);
             
             // Initial scroll to bottom
             scrollToBottom(logContainer);
@@ -1092,4 +1106,4 @@ if __name__ == '__main__':
     log_thread.start()
     
     print("Starting log viewer on port 8189...")
-    app.run(host='0.0.0.0', port=8189, debug=True)
+    socketio.run(app, host='0.0.0.0', port=8189, debug=True)

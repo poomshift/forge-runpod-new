@@ -32,7 +32,7 @@ RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI && \
     cd ComfyUI && \
     pip3 install --no-cache-dir torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu124 && \
     pip3 install --no-cache-dir -r requirements.txt && \
-    pip3 install --no-cache-dir jupyter jupyterlab nodejs opencv-python requests runpod flask websocket-client psutil gputil
+    pip3 install --no-cache-dir jupyter jupyterlab nodejs opencv-python requests runpod flask flask-socketio websocket-client psutil gputil
 
 # Create directory structure
 RUN mkdir -p ComfyUI/models/{checkpoints,vae,unet,diffusion_models,text_encoders,loras} \
