@@ -73,7 +73,7 @@ COPY models/hunyuan_flat_color_v2.safetensors /workspace/ComfyUI/models/loras/
 
 # Set environment variables for configuration
 ENV UPDATE_ON_START=false \
-    MODELS_CONFIG_URL=https://raw.githubusercontent.com/[your-repo]/main/models_config.json \
+    MODELS_CONFIG_URL=https://huggingface.co/Patarapoom/model/resolve/main/models_config.json \
     SKIP_MODEL_DOWNLOAD=false \
     FORCE_MODEL_DOWNLOAD=false
 
