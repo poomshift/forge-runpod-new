@@ -1,0 +1,15 @@
+{
+  "diffusion_models": [
+    "https://huggingface.co/Kijai/HunyuanVideo_comfy/resolve/main/hunyuan_video_720_cfgdistill_fp8_e4m3fn.safetensors"
+  ],
+  "unet": [
+    "https://huggingface.co/city96/FastHunyuan-gguf/resolve/main/fast-hunyuan-video-t2v-720p-Q4_K_M.gguf"
+  ],
+  "vae": [
+    "https://huggingface.co/Kijai/HunyuanVideo_comfy/resolve/main/hunyuan_video_vae_bf16.safetensors"
+  ],
+  "text_encoders": [
+    "https://huggingface.co/calcuis/hunyuan-gguf/resolve/main/clip_l.safetensors",
+    "https://huggingface.co/calcuis/hunyuan-gguf/resolve/main/llava_llama3_fp8_scaled.safetensors"
+  ]
+} 
