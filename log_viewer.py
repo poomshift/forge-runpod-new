@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, make_response, jsonify, send_file
+from flask import Flask, render_template_string, make_response, jsonify, send_file, request
 import os
 import psutil
 import GPUtil
@@ -11,8 +11,10 @@ import sys
 import platform
 import zipfile
 import io
+import urllib.parse
 from flask_socketio import SocketIO, emit
 
+# Initialize Flask and SocketIO with CORS
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
@@ -32,7 +34,686 @@ system_stats = {
 
 log_buffer = []
 log_lock = threading.Lock()
-comfyui_process = None
+
+# Add HTML_TEMPLATE before the routes
+HTML_TEMPLATE = '''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ComfyUI Control Center | Performance Monitor & Logs</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+            --progress-bg: #e2e8f0;
+            --scrollbar-track: #f1f1f1;
+            --scrollbar-thumb: #c1c1c1;
+            --scrollbar-thumb-hover: #a8a8a8;
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #3b82f6;
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+            --progress-bg: #334155;
+            --scrollbar-track: #1e293b;
+            --scrollbar-thumb: #475569;
+            --scrollbar-thumb-hover: #64748b;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            box-sizing: border-box;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        .container {
+            max-width: 100%;
+            height: calc(100vh - 40px);
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .header {
+            padding: 16px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            color: var(--text-color);
+        }
+        
+        .main-content {
+            display: flex;
+            gap: 20px;
+            flex: 1;
+            min-height: 0;
+        }
+        
+        .monitor-section {
+            width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+        
+        .logs-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        
+        .downloader-section {
+            width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+        
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: background-color 0.3s;
+        }
+        
+        .card h2 {
+            margin: 0 0 16px 0;
+            font-size: 18px;
+            color: var(--text-color);
+        }
+        
+        .stat {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .stat-label {
+            flex: 1;
+            color: var(--text-secondary);
+        }
+        
+        .stat-value {
+            font-weight: 500;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--progress-bg);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--primary-color);
+            transition: width 0.3s ease;
+        }
+        
+        .controls {
+            margin: 16px 0;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .divider {
+            width: 1px;
+            height: 24px;
+            background: var(--border-color);
+            margin: 0 4px;
+        }
+        
+        #log-container {
+            flex: 1;
+            padding: 20px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        .timestamp {
+            color: var(--text-secondary);
+            font-size: 12px;
+            margin-top: 8px;
+        }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--scrollbar-track);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--scrollbar-thumb);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--scrollbar-thumb-hover);
+        }
+
+        /* Theme switch styles */
+        .theme-switch {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .theme-switch .icon {
+            font-size: 16px;
+            line-height: 1;
+            user-select: none;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--progress-bg);
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: var(--card-bg);
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: var(--primary-color);
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        .auto-scroll-control {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+            background: var(--card-bg);
+            padding: 8px 16px;
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .download-button {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 16px;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        
+        .download-button:hover {
+            background-color: #1d4ed8;
+        }
+
+        .download-form {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-color);
+            font-weight: 500;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="url"],
+        .form-group select {
+            width: calc(100% - 24px);
+            max-width: 400px;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-color);
+            color: var(--text-color);
+            font-size: 14px;
+        }
+
+        .form-group .example-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .form-group select {
+            cursor: pointer;
+        }
+
+        #downloadStatus {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .status-success {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        let socket;
+        let autoScroll = true;
+        let userScrolled = false;
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            const themeToggle = document.getElementById('theme-toggle');
+            
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            
+            document.getElementById('theme-icon').textContent = 
+                newTheme === 'dark' ? '🌙' : '☀️';
+            
+            themeToggle.checked = newTheme === 'dark';
+        }
+
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            const themeToggle = document.getElementById('theme-toggle');
+            
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            document.getElementById('theme-icon').textContent = 
+                savedTheme === 'dark' ? '🌙' : '☀️';
+            themeToggle.checked = savedTheme === 'dark';
+        }
+
+        function initializeWebSocket() {
+            socket = io();
+            
+            socket.on('system_stats', function(stats) {
+                updateSystemStatsDisplay(stats);
+            });
+            
+            socket.on('new_log_line', function(data) {
+                appendLogLine(data.line);
+            });
+            
+            socket.on('logs', function(data) {
+                document.getElementById('log-container').innerHTML = data.logs;
+                if (autoScroll) {
+                    scrollToBottom(document.getElementById('log-container'));
+                }
+            });
+        }
+        
+        function appendLogLine(line) {
+            const logContainer = document.getElementById('log-container');
+            logContainer.innerHTML += line + '\\n';
+            
+            if (autoScroll && !userScrolled) {
+                scrollToBottom(logContainer);
+            }
+        }
+        
+        function updateSystemStatsDisplay(stats) {
+            document.getElementById('cpu-model').textContent = 
+                `${stats.cpu.model}${stats.cpu.frequency ? ` @ ${stats.cpu.frequency.toFixed(2)} MHz` : ''}`;
+            document.getElementById('cpu-usage').textContent = `${stats.cpu.percent.toFixed(1)}%`;
+            document.getElementById('cpu-bar').style.width = `${stats.cpu.percent}%`;
+            
+            document.getElementById('memory-usage').textContent = 
+                `${stats.memory.used}GB / ${stats.memory.total}GB (${stats.memory.percent}%)`;
+            document.getElementById('memory-bar').style.width = `${stats.memory.percent}%`;
+            
+            document.getElementById('gpu-name').textContent = stats.gpu.name;
+            document.getElementById('gpu-usage').textContent = 
+                `${stats.gpu.percent.toFixed(1)}% | ${stats.gpu.memory_used}MB / ${stats.gpu.memory_total}MB`;
+            document.getElementById('gpu-temp').textContent = `${stats.gpu.temp}°C`;
+            document.getElementById('gpu-bar').style.width = `${stats.gpu.percent}%`;
+            
+            document.getElementById('disk-usage').textContent = 
+                `${stats.disk.used}GB / ${stats.disk.total}GB (${stats.disk.percent}%)`;
+            document.getElementById('disk-bar').style.width = `${stats.disk.percent}%`;
+            
+            document.getElementById('last-update').textContent = `Last updated: ${stats.timestamp}`;
+        }
+        
+        function scrollToBottom(element) {
+            element.scrollTop = element.scrollHeight;
+        }
+        
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            userScrolled = false;
+            if (autoScroll) {
+                const logContainer = document.getElementById('log-container');
+                scrollToBottom(logContainer);
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeTheme();
+            initializeWebSocket();
+            
+            const logContainer = document.getElementById('log-container');
+            
+            logContainer.addEventListener('scroll', function() {
+                if (!isScrolledToBottom(logContainer)) {
+                    userScrolled = true;
+                } else {
+                    userScrolled = false;
+                }
+            });
+            
+            scrollToBottom(logContainer);
+        });
+
+        function isScrolledToBottom(element) {
+            return Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) < 1;
+        }
+
+        function downloadFromCivitai() {
+            const url = document.getElementById('modelUrl').value;
+            const apiKey = document.getElementById('apiKey').value;
+            const modelType = document.getElementById('modelType').value;
+            const statusDiv = document.getElementById('downloadStatus');
+            
+            statusDiv.className = '';
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = 'Downloading...';
+            
+            fetch('/download/civitai', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    url: url,
+                    api_key: apiKey,
+                    model_type: modelType
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                statusDiv.textContent = data.message;
+                statusDiv.className = data.success ? 'status-success' : 'status-error';
+            })
+            .catch(error => {
+                statusDiv.textContent = 'Error: ' + error.message;
+                statusDiv.className = 'status-error';
+                });
+        }
+
+        function downloadFromHuggingFace() {
+            const url = document.getElementById('hfUrl').value;
+            const modelType = document.getElementById('hfModelType').value;
+            const statusDiv = document.getElementById('hfDownloadStatus');
+            
+            statusDiv.className = '';
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = 'Downloading...';
+            
+            fetch('/download/huggingface', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    url: url,
+                    model_type: modelType
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                statusDiv.textContent = data.message;
+                statusDiv.className = data.success ? 'status-success' : 'status-error';
+            })
+            .catch(error => {
+                statusDiv.textContent = 'Error: ' + error.message;
+                statusDiv.className = 'status-error';
+            });
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+    <div class="header">
+            <div class="title-section">
+                <h1>ComfyUI Control Center</h1>
+                <span class="title-badge">Performance Monitor & Logs</span>
+            </div>
+            <div class="controls">
+                <div class="control-group">
+                    <a href="/download/outputs" class="download-button">Download Outputs</a>
+                    <div class="divider"></div>
+                    <div class="theme-switch">
+                        <span id="theme-icon" class="icon">☀️</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="monitor-section">
+                <div class="card">
+                    <h2>CPU Usage</h2>
+                    <div class="model-info" id="cpu-model">Unknown CPU</div>
+                    <div class="stat">
+                        <span class="stat-label">Total Usage</span>
+                        <span class="stat-value" id="cpu-usage">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="cpu-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>Memory Usage</h2>
+                    <div class="stat">
+                        <span class="stat-label">RAM Usage</span>
+                        <span class="stat-value" id="memory-usage">0GB / 0GB (0%)</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="memory-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>GPU Status</h2>
+                    <div class="stat">
+                        <span class="stat-label">GPU Model</span>
+                        <span class="stat-value" id="gpu-name">N/A</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Usage & Memory</span>
+                        <span class="stat-value" id="gpu-usage">0% | 0MB / 0MB</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Temperature</span>
+                        <span class="stat-value" id="gpu-temp">0°C</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="gpu-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>Disk Usage</h2>
+                    <div class="stat">
+                        <span class="stat-label">Storage</span>
+                        <span class="stat-value" id="disk-usage">0GB / 0GB (0%)</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="disk-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <div class="timestamp" id="last-update"></div>
+            </div>
+            
+            <div class="logs-section">
+                <div id="log-container">{{ logs }}</div>
+            </div>
+
+            <div class="downloader-section">
+                <div class="card">
+                    <h2>Civitai Model Downloader</h2>
+                    <div class="form-group">
+                        <label for="modelUrl">Model URL</label>
+                        <input type="url" id="modelUrl" placeholder="Enter model URL" required>
+                        <div class="example-text">Example: https://civitai.com/api/download/models/1399707</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="apiKey">API Key (Optional)</label>
+                        <input type="text" id="apiKey" placeholder="Your Civitai API key">
+                    </div>
+                    <div class="form-group">
+                        <label for="modelType">Model Type</label>
+                        <select id="modelType">
+                            <option value="diffusion_models">Diffusion Model</option>
+                            <option value="loras">LORA</option>
+                            <option value="checkpoints">Checkpoint</option>
+                            <option value="vae">VAE</option>
+                            <option value="unet">UNet</option>
+                            <option value="text_encoders">Text Encoder</option>
+                        </select>
+                    </div>
+                    <button onclick="downloadFromCivitai()" class="download-button">Download Model</button>
+                    <div id="downloadStatus"></div>
+                </div>
+
+                <div class="card">
+                    <h2>Hugging Face Downloader</h2>
+                    <div class="form-group">
+                        <label for="hfUrl">Model URL</label>
+                        <input type="url" id="hfUrl" placeholder="Enter Hugging Face file URL" required>
+                        <div class="example-text">Example: https://huggingface.co/[user]/[repo]/resolve/main/model.safetensors</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="hfModelType">Model Type</label>
+                        <select id="hfModelType">
+                            <option value="diffusion_models">Diffusion Model</option>
+                            <option value="loras">LORA</option>
+                            <option value="checkpoints">Checkpoint</option>
+                            <option value="vae">VAE</option>
+                            <option value="unet">UNet</option>
+                            <option value="text_encoders">Text Encoder</option>
+                        </select>
+                    </div>
+                    <button onclick="downloadFromHuggingFace()" class="download-button">Download Model</button>
+                    <div id="hfDownloadStatus"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="auto-scroll-control">
+        <span>Auto-scroll</span>
+        <label class="toggle-switch">
+            <input type="checkbox" checked onchange="toggleAutoScroll()">
+            <span class="toggle-slider"></span>
+        </label>
+    </div>
+</body>
+</html>
+'''
 
 def get_cpu_info():
     try:
@@ -162,43 +843,6 @@ def get_current_logs():
         header += "=" * 80 + "\n\n"
         return header + '\n'.join(log_buffer)
 
-def kill_comfyui():
-    """Kill the ComfyUI process"""
-    try:
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-            try:
-                cmdline = ' '.join(proc.cmdline())
-                if 'python' in proc.name().lower() and 'main.py' in cmdline and 'ComfyUI' in cmdline:
-                    proc.terminate()
-                    proc.wait(timeout=5)  # Wait for process to terminate
-                    return True
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired):
-                continue
-    except Exception as e:
-        print(f"Error killing ComfyUI: {e}")
-    return False
-
-def start_comfyui():
-    """Start the ComfyUI process"""
-    global comfyui_process
-    try:
-        comfyui_dir = os.path.join('/workspace', 'ComfyUI')
-        log_file = os.path.join('logs', 'comfyui.log')
-        
-        with open(log_file, 'a') as f:
-            process = subprocess.Popen(
-                [sys.executable, 'main.py', '--listen', '0.0.0.0', '--port', '8188'],
-                cwd=comfyui_dir,
-                stdout=f,
-                stderr=subprocess.STDOUT,
-                text=True
-            )
-            comfyui_process = process
-            return True
-    except Exception as e:
-        print(f"Error starting ComfyUI: {e}")
-        return False
-
 def create_output_zip():
     """Create a zip file of the ComfyUI output directory"""
     output_dir = os.path.join('/workspace', 'ComfyUI', 'output')
@@ -214,6 +858,62 @@ def create_output_zip():
     memory_file.seek(0)
     return memory_file
 
+def download_from_civitai(url, api_key=None, model_type="loras"):
+    """Download a model from Civitai using aria2c"""
+    model_dir = os.path.join('/workspace', 'ComfyUI', 'models', model_type)
+    os.makedirs(model_dir, exist_ok=True)
+    
+    download_url = url
+    if api_key:
+        download_url = f"{url}?token={api_key}"
+    
+    cmd = [
+        'aria2c',
+        '--console-log-level=error',
+        '-c',
+        '-x', '16',
+        '-s', '16',
+        '-k', '1M',
+        download_url,
+        '-d', model_dir
+    ]
+    
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            return {"success": True, "message": "Download completed successfully"}
+        else:
+            return {"success": False, "message": f"Download failed: {result.stderr}"}
+    except Exception as e:
+        return {"success": False, "message": f"Error during download: {str(e)}"}
+
+def download_from_huggingface(url, model_type="loras"):
+    """Download a model from Hugging Face using aria2c"""
+    model_dir = os.path.join('/workspace', 'ComfyUI', 'models', model_type)
+    os.makedirs(model_dir, exist_ok=True)
+    
+    try:
+        filename = url.split('/')[-1]
+        cmd = [
+            'aria2c',
+            '--console-log-level=error',
+            '-c',
+            '-x', '8',
+            '-s', '8',
+            '-k', '1M',
+            url,
+            '-d', model_dir,
+            '-o', filename
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            return {"success": True, "message": "Download completed successfully"}
+        else:
+            return {"success": False, "message": f"Download failed: {result.stderr}"}
+    except Exception as e:
+        return {"success": False, "message": f"Error during download: {str(e)}"}
+
 @app.route('/system_stats')
 def get_system_stats():
     return jsonify(system_stats)
@@ -221,16 +921,6 @@ def get_system_stats():
 @app.route('/logs')
 def get_logs():
     return jsonify({'logs': get_current_logs()})
-
-@app.route('/control/kill')
-def control_kill():
-    success = kill_comfyui()
-    return jsonify({'success': success})
-
-@app.route('/control/start')
-def control_start():
-    success = start_comfyui()
-    return jsonify({'success': success})
 
 @app.route('/download/outputs')
 def download_outputs():
@@ -246,846 +936,30 @@ def download_outputs():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-HTML_TEMPLATE = '''
-<!DOCTYPE html>
-<html>
-<head>
-    <title>ComfyUI Control Center | Performance Monitor & Logs</title>
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            /* Light theme variables */
-            --primary-color: #2563eb;
-            --bg-color: #f8fafc;
-            --card-bg: #ffffff;
-            --text-color: #1e293b;
-            --text-secondary: #64748b;
-            --border-color: #e2e8f0;
-            --progress-bg: #e2e8f0;
-            --scrollbar-track: #f1f1f1;
-            --scrollbar-thumb: #c1c1c1;
-            --scrollbar-thumb-hover: #a8a8a8;
-        }
+@app.route('/download/civitai', methods=['POST'])
+def download_civitai():
+    data = request.get_json()
+    url = data.get('url')
+    api_key = data.get('api_key')
+    model_type = data.get('model_type', 'loras')
+    
+    if not url:
+        return jsonify({"success": False, "message": "URL is required"}), 400
+    
+    result = download_from_civitai(url, api_key, model_type)
+    return jsonify(result)
 
-        [data-theme="dark"] {
-            --primary-color: #3b82f6;
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --text-color: #e2e8f0;
-            --text-secondary: #94a3b8;
-            --border-color: #334155;
-            --progress-bg: #334155;
-            --scrollbar-track: #1e293b;
-            --scrollbar-thumb: #475569;
-            --scrollbar-thumb-hover: #64748b;
-        }
-        
-        body { 
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: var(--bg-color);
-            color: var(--text-color);
-            height: 100vh;
-            box-sizing: border-box;
-            transition: background-color 0.3s, color 0.3s;
-        }
-        
-        .container {
-            max-width: 100%;
-            height: calc(100vh - 40px);
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-        
-        .header {
-            padding: 16px;
-            background: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        
-        .header h1 {
-            margin: 0;
-            font-size: 24px;
-            color: var(--text-color);
-        }
-        
-        .main-content {
-            display: flex;
-            gap: 20px;
-            flex: 1;
-            min-height: 0;  /* Important for scrolling */
-        }
-        
-        .monitor-section {
-            width: 400px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            overflow-y: auto;
-        }
-        
-        .logs-section {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-width: 0;  /* Important for text wrapping */
-        }
-        
-        .card {
-            background: var(--card-bg);
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            transition: background-color 0.3s;
-        }
-        
-        .card h2 {
-            margin: 0 0 16px 0;
-            font-size: 18px;
-            color: var(--text-color);
-        }
-        
-        .stat {
-            display: flex;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-        
-        .stat-label {
-            flex: 1;
-            color: var(--text-secondary);
-        }
-        
-        .stat-value {
-            font-weight: 500;
-        }
-        
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: var(--progress-bg);
-            border-radius: 4px;
-            overflow: hidden;
-            margin-top: 8px;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: var(--primary-color);
-            transition: width 0.3s ease;
-        }
-        
-        .controls {
-            margin: 16px 0;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            flex-wrap: wrap;
-        }
-        
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        
-        .divider {
-            width: 1px;
-            height: 24px;
-            background: var(--border-color);
-            margin: 0 4px;
-        }
-        
-        .interval-input {
-            padding: 8px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            width: 100px;
-            font-size: 14px;
-        }
-        
-        .status {
-            color: var(--text-secondary);
-            font-size: 14px;
-        }
-        
-        #log-container {
-            flex: 1;
-            padding: 20px;
-            font-family: 'Monaco', 'Consolas', monospace;
-            font-size: 14px;
-            line-height: 1.5;
-            white-space: pre-wrap;
-            overflow-y: auto;
-            background: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            color: var(--text-color);
-            transition: background-color 0.3s, color 0.3s;
-        }
-        
-        .timestamp {
-            color: var(--text-secondary);
-            font-size: 12px;
-            margin-top: 8px;
-        }
-        
-        /* Scrollbar styling */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: var(--scrollbar-track);
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: var(--scrollbar-thumb);
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--scrollbar-thumb-hover);
-        }
-        
-        /* Remove core usage styles */
-        .core-usage {
-            display: none;
-        }
-        
-        .core {
-            display: none;
-        }
-        
-        .core-label {
-            display: none;
-        }
-        
-        .core-bar {
-            display: none;
-        }
-        
-        .core-fill {
-            display: none;
-        }
-        
-        .core-value {
-            display: none;
-        }
-
-        /* Update CPU card to be more compact */
-        .card {
-            background: var(--card-bg);
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            transition: background-color 0.3s;
-        }
-
-        /* Update JavaScript to remove core updates */
-        function updateSystemStats() {
-            fetch('/system_stats?t=' + new Date().getTime())
-                .then(response => response.json())
-                .then(stats => {
-                    // Update CPU
-                    document.getElementById('cpu-model').textContent = 
-                        `${stats.cpu.model}${stats.cpu.frequency ? ` @ ${stats.cpu.frequency.toFixed(2)} MHz` : ''}`;
-                    document.getElementById('cpu-usage').textContent = `${stats.cpu.percent.toFixed(1)}%`;
-                    document.getElementById('cpu-bar').style.width = `${stats.cpu.percent}%`;
-                    
-                    // Update Memory
-                    document.getElementById('memory-usage').textContent = 
-                        `${stats.memory.used}GB / ${stats.memory.total}GB (${stats.memory.percent}%)`;
-                    document.getElementById('memory-bar').style.width = `${stats.memory.percent}%`;
-                    
-                    // Update GPU
-                    document.getElementById('gpu-name').textContent = stats.gpu.name;
-                    document.getElementById('gpu-usage').textContent = 
-                        `${stats.gpu.percent.toFixed(1)}% | ${stats.gpu.memory_used}MB / ${stats.gpu.memory_total}MB`;
-                    document.getElementById('gpu-temp').textContent = `${stats.gpu.temp}°C`;
-                    document.getElementById('gpu-bar').style.width = `${stats.gpu.percent}%`;
-                    
-                    // Update Disk
-                    document.getElementById('disk-usage').textContent = 
-                        `${stats.disk.used}GB / ${stats.disk.total}GB (${stats.disk.percent}%)`;
-                    document.getElementById('disk-bar').style.width = `${stats.disk.percent}%`;
-                    
-                    // Update timestamp
-                    document.getElementById('last-update').textContent = `Last updated: ${stats.timestamp}`;
-                });
-        }
-
-        /* Update CPU card HTML */
-        <div class="card">
-            <h2>CPU Usage</h2>
-            <div class="model-info" id="cpu-model">Unknown CPU</div>
-            <div class="stat">
-                <span class="stat-label">Total Usage</span>
-                <span class="stat-value" id="cpu-usage">0%</span>
-            </div>
-            <div class="progress-bar">
-                <div class="progress-fill" id="cpu-bar" style="width: 0%"></div>
-            </div>
-        </div>
-
-        /* Theme switch styles */
-        .theme-switch-wrapper {
-            position: fixed;
-            top: 20px;
-            right: 30px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            z-index: 1000;
-            background: var(--card-bg);
-            padding: 8px 16px;
-            border-radius: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-
-        .theme-switch-wrapper .icon {
-            font-size: 20px;
-            line-height: 1;
-            user-select: none;
-        }
-
-        /* Auto-scroll control */
-        .auto-scroll-control {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            z-index: 1000;
-            background: var(--card-bg);
-            padding: 8px 16px;
-            border-radius: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            color: var(--text-color);
-            transition: background-color 0.3s, color 0.3s;
-        }
-
-        /* Toggle switch styles */
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 44px;
-            height: 24px;
-        }
-
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: var(--progress-bg);
-            transition: .4s;
-            border-radius: 24px;
-        }
-
-        .toggle-slider:before {
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background-color: var(--card-bg);
-            transition: .4s;
-            border-radius: 50%;
-        }
-
-        input:checked + .toggle-slider {
-            background-color: var(--primary-color);
-        }
-
-        input:checked + .toggle-slider:before {
-            transform: translateX(20px);
-        }
-
-        /* Process control buttons */
-        .control-button {
-            padding: 8px 16px;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s ease;
-            font-size: 14px;
-        }
-
-        .kill-button {
-            background: #ef4444;
-            color: white;
-        }
-
-        .kill-button:hover {
-            background: #dc2626;
-        }
-
-        .start-button {
-            background: #22c55e;
-            color: white;
-        }
-
-        .start-button:hover {
-            background: #16a34a;
-        }
-
-        .download-button {
-            background: #8b5cf6;
-            color: white;
-        }
-
-        .download-button:hover {
-            background: #7c3aed;
-        }
-
-        .control-button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .control-button .icon {
-            font-size: 16px;
-        }
-
-        /* Update header controls style */
-        .controls {
-            margin: 16px 0;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            flex-wrap: wrap;
-        }
-
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .divider {
-            width: 1px;
-            height: 24px;
-            background: var(--border-color);
-            margin: 0 4px;
-        }
-
-        /* Theme switch styles - updated for header */
-        .theme-switch {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .theme-switch .icon {
-            font-size: 16px;
-            line-height: 1;
-            user-select: none;
-        }
-
-        /* Remove the fixed position theme switch wrapper */
-        .theme-switch-wrapper {
-            display: none;
-        }
-
-        /* Update HTML structure in the header */
-        <div class="header">
-            <div class="title-section">
-                <h1>ComfyUI Control Center</h1>
-                <span class="title-badge">Performance Monitor & Logs</span>
-            </div>
-            <div class="controls">
-                <div class="control-group">
-                    <input type="number" id="refresh-interval" class="interval-input" 
-                           min="1" placeholder="Seconds" 
-                           onchange="startAutoRefresh()">
-                    <span id="status" class="status"></span>
-                </div>
-                
-                <div class="divider"></div>
-                
-                <div class="control-group">
-                    <button id="kill-button" class="control-button kill-button" onclick="controlComfyUI('kill')">
-                        <span class="icon">⚡</span> Kill ComfyUI
-                    </button>
-                    <button id="start-button" class="control-button start-button" onclick="controlComfyUI('start')">
-                        <span class="icon">▶️</span> Start ComfyUI
-                    </button>
-                    <button id="download-button" class="control-button download-button" onclick="downloadOutputs()">
-                        <span class="icon">📦</span> Download Outputs
-                    </button>
-                    
-                    <div class="divider"></div>
-                    
-                    <div class="theme-switch">
-                        <span id="theme-icon" class="icon">☀️</span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        /* Remove the old theme switch wrapper from body */
-        <!-- Remove this from body:
-        <div class="theme-switch-wrapper">
-            <span id="theme-icon" class="icon">☀️</span>
-            <label class="toggle-switch">
-                <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
-                <span class="toggle-slider"></span>
-            </label>
-        </div>
-        -->
-    </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <script>
-        let socket;
-        let refreshInterval;
-        let autoScroll = true;
-        let lastScrollPosition = 0;
-        let userScrolled = false;
-
-        // Add theme switching functionality
-        function toggleTheme() {
-            const html = document.documentElement;
-            const currentTheme = html.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            const themeToggle = document.getElementById('theme-toggle');
-            
-            html.setAttribute('data-theme', newTheme);
-            localStorage.setItem('theme', newTheme);
-            
-            // Update icons
-            document.getElementById('theme-icon').textContent = 
-                newTheme === 'dark' ? '🌙' : '☀️';
-            
-            // Update checkbox state
-            themeToggle.checked = newTheme === 'dark';
-        }
-
-        // Initialize theme
-        function initializeTheme() {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            const themeToggle = document.getElementById('theme-toggle');
-            
-            document.documentElement.setAttribute('data-theme', savedTheme);
-            document.getElementById('theme-icon').textContent = 
-                savedTheme === 'dark' ? '🌙' : '☀️';
-            themeToggle.checked = savedTheme === 'dark';
-        }
-
-        function initializeWebSocket() {
-            socket = io();
-            
-            // Handle system stats updates
-            socket.on('system_stats', function(stats) {
-                updateSystemStatsDisplay(stats);
-            });
-            
-            // Handle new log lines
-            socket.on('new_log_line', function(data) {
-                appendLogLine(data.line);
-            });
-            
-            // Handle complete log updates
-            socket.on('logs', function(data) {
-                document.getElementById('log-container').innerHTML = data.logs;
-                if (autoScroll) {
-                    scrollToBottom(document.getElementById('log-container'));
-                }
-            });
-        }
-        
-        function appendLogLine(line) {
-            const logContainer = document.getElementById('log-container');
-            logContainer.innerHTML += line + '\\n';
-            
-            // Trim old logs if too many lines
-            const maxLines = 500;
-            let lines = logContainer.innerHTML.split('\\n');
-            if (lines.length > maxLines) {
-                lines = lines.slice(-maxLines);
-                logContainer.innerHTML = lines.join('\\n');
-            }
-            
-            if (autoScroll && !userScrolled) {
-                scrollToBottom(logContainer);
-            }
-        }
-        
-        function updateSystemStatsDisplay(stats) {
-            // Update CPU
-            document.getElementById('cpu-model').textContent = 
-                `${stats.cpu.model}${stats.cpu.frequency ? ` @ ${stats.cpu.frequency.toFixed(2)} MHz` : ''}`;
-            document.getElementById('cpu-usage').textContent = `${stats.cpu.percent.toFixed(1)}%`;
-            document.getElementById('cpu-bar').style.width = `${stats.cpu.percent}%`;
-            
-            // Update Memory
-            document.getElementById('memory-usage').textContent = 
-                `${stats.memory.used}GB / ${stats.memory.total}GB (${stats.memory.percent}%)`;
-            document.getElementById('memory-bar').style.width = `${stats.memory.percent}%`;
-            
-            // Update GPU
-            document.getElementById('gpu-name').textContent = stats.gpu.name;
-            document.getElementById('gpu-usage').textContent = 
-                `${stats.gpu.percent.toFixed(1)}% | ${stats.gpu.memory_used}MB / ${stats.gpu.memory_total}MB`;
-            document.getElementById('gpu-temp').textContent = `${stats.gpu.temp}°C`;
-            document.getElementById('gpu-bar').style.width = `${stats.gpu.percent}%`;
-            
-            // Update Disk
-            document.getElementById('disk-usage').textContent = 
-                `${stats.disk.used}GB / ${stats.disk.total}GB (${stats.disk.percent}%)`;
-            document.getElementById('disk-bar').style.width = `${stats.disk.percent}%`;
-            
-            // Update timestamp
-            document.getElementById('last-update').textContent = `Last updated: ${stats.timestamp}`;
-        }
-        
-        function startAutoRefresh() {
-            const seconds = parseInt(document.getElementById('refresh-interval').value);
-            if (seconds < 1) {
-                alert('Please enter a valid number of seconds (minimum 1)');
-                return;
-            }
-            updateStatus(seconds);
-        }
-        
-        function updateStatus(seconds) {
-            document.getElementById('status').textContent = 
-                `Auto-refreshing every ${seconds} seconds`;
-        }
-        
-        function scrollToBottom(element) {
-            element.scrollTop = element.scrollHeight;
-        }
-        
-        function toggleAutoScroll() {
-            autoScroll = !autoScroll;
-            userScrolled = false;
-            if (autoScroll) {
-                const logContainer = document.getElementById('log-container');
-                scrollToBottom(logContainer);
-            }
-        }
-        
-        function controlComfyUI(action) {
-            const killBtn = document.getElementById('kill-button');
-            const startBtn = document.getElementById('start-button');
-            
-            // Disable both buttons during operation
-            killBtn.disabled = true;
-            startBtn.disabled = true;
-            
-            fetch(`/control/${action}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        if (action === 'kill') {
-                            killBtn.disabled = true;
-                            startBtn.disabled = false;
-                        } else {
-                            killBtn.disabled = false;
-                            startBtn.disabled = true;
-                        }
-                    } else {
-                        // Re-enable both buttons if operation failed
-                        killBtn.disabled = false;
-                        startBtn.disabled = false;
-                        alert(`Failed to ${action} ComfyUI`);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    killBtn.disabled = false;
-                    startBtn.disabled = false;
-                    alert(`Error during ${action} operation`);
-                });
-        }
-        
-        function downloadOutputs() {
-            const downloadBtn = document.getElementById('download-button');
-            downloadBtn.disabled = true;
-            
-            // Create a temporary link element
-            const link = document.createElement('a');
-            link.href = '/download/outputs';
-            link.target = '_blank';
-            
-            // Append to body, click, and remove
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            // Re-enable button after a short delay
-            setTimeout(() => {
-                downloadBtn.disabled = false;
-            }, 2000);
-        }
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeTheme();
-            initializeWebSocket();
-            
-            const logContainer = document.getElementById('log-container');
-            
-            // Handle manual scrolling
-            logContainer.addEventListener('scroll', function() {
-                if (!isScrolledToBottom(logContainer)) {
-                    userScrolled = true;
-                } else {
-                    userScrolled = false;
-                }
-            });
-            
-            // Initialize auto-refresh
-            document.getElementById('refresh-interval').value = 5;
-            startAutoRefresh();
-            updateSystemStatsDisplay(system_stats);
-            
-            // Initial scroll to bottom
-            scrollToBottom(logContainer);
-        });
-    </script>
-</head>
-<body>
-    <div class="container">
-    <div class="header">
-            <div class="title-section">
-                <h1>ComfyUI Control Center</h1>
-                <span class="title-badge">Performance Monitor & Logs</span>
-            </div>
-            <div class="controls">
-                <div class="control-group">
-                    <input type="number" id="refresh-interval" class="interval-input" 
-                           min="1" placeholder="Seconds" 
-                           onchange="startAutoRefresh()">
-                    <span id="status" class="status"></span>
-                </div>
-                
-                <div class="divider"></div>
-                
-                <div class="control-group">
-                    <button id="kill-button" class="control-button kill-button" onclick="controlComfyUI('kill')">
-                        <span class="icon">⚡</span> Kill ComfyUI
-                    </button>
-                    <button id="start-button" class="control-button start-button" onclick="controlComfyUI('start')">
-                        <span class="icon">▶️</span> Start ComfyUI
-                    </button>
-                    <button id="download-button" class="control-button download-button" onclick="downloadOutputs()">
-                        <span class="icon">📦</span> Download Outputs
-                    </button>
-                    
-                    <div class="divider"></div>
-                    
-                    <div class="theme-switch">
-                        <span id="theme-icon" class="icon">☀️</span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="main-content">
-            <div class="monitor-section">
-                <div class="card">
-                    <h2>CPU Usage</h2>
-                    <div class="model-info" id="cpu-model">Unknown CPU</div>
-                    <div class="stat">
-                        <span class="stat-label">Total Usage</span>
-                        <span class="stat-value" id="cpu-usage">0%</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="cpu-bar" style="width: 0%"></div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h2>Memory Usage</h2>
-                    <div class="stat">
-                        <span class="stat-label">RAM Usage</span>
-                        <span class="stat-value" id="memory-usage">0GB / 0GB (0%)</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="memory-bar" style="width: 0%"></div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h2>GPU Status</h2>
-                    <div class="stat">
-                        <span class="stat-label">GPU Model</span>
-                        <span class="stat-value" id="gpu-name">N/A</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Usage & Memory</span>
-                        <span class="stat-value" id="gpu-usage">0% | 0MB / 0MB</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Temperature</span>
-                        <span class="stat-value" id="gpu-temp">0°C</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="gpu-bar" style="width: 0%"></div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h2>Disk Usage</h2>
-                    <div class="stat">
-                        <span class="stat-label">Storage</span>
-                        <span class="stat-value" id="disk-usage">0GB / 0GB (0%)</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="disk-bar" style="width: 0%"></div>
-                    </div>
-                </div>
-                
-                <div class="timestamp" id="last-update"></div>
-            </div>
-            
-            <div class="logs-section">
-                <div id="log-container">{{ logs }}</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="auto-scroll-control">
-        <span>Auto-scroll</span>
-        <label class="toggle-switch">
-            <input type="checkbox" checked onchange="toggleAutoScroll()">
-            <span class="toggle-slider"></span>
-        </label>
-    </div>
-</body>
-</html>
-'''
+@app.route('/download/huggingface', methods=['POST'])
+def download_huggingface():
+    data = request.get_json()
+    url = data.get('url')
+    model_type = data.get('model_type', 'loras')
+    
+    if not url:
+        return jsonify({"success": False, "message": "URL is required"}), 400
+    
+    result = download_from_huggingface(url, model_type)
+    return jsonify(result)
 
 @app.route('/')
 def index():
@@ -1106,4 +980,8 @@ if __name__ == '__main__':
     log_thread.start()
     
     print("Starting log viewer on port 8189...")
-    socketio.run(app, host='0.0.0.0', port=8189, debug=True)
+    socketio.run(app, 
+                 host='0.0.0.0', 
+                 port=8189, 
+                 debug=False,
+                 allow_unsafe_werkzeug=True)
