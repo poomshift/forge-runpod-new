@@ -7,24 +7,24 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH="${PATH}:/root/.local/bin"
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y software-properties-common && \
-    add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
-    python3.12 \
-    python3.12-venv \
-    python3.12-dev \
+    python3.10 \
+    python3.10-venv \
+    python3.10-dev \
     python3-pip \
     build-essential \
     libgl1-mesa-glx \
     libglib2.0-0 \
     wget \
+    curl \
     ffmpeg \
     aria2 \
+    rsync \
     && rm -rf /var/lib/apt/lists/*
-
+    
 # Create and activate virtual environment
-RUN python3.12 -m venv /opt/venv
+RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Set working directory
