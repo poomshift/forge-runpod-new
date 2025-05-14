@@ -53,6 +53,21 @@ mkdir -p /workspace/ComfyUI
 # Create log file if it doesn't exist
 touch /workspace/logs/comfyui.log
 
+# Clean up the log file to remove any duplicate lines
+clean_log_file() {
+    local log_file="/workspace/logs/comfyui.log"
+    if [ -f "$log_file" ] && [ -s "$log_file" ]; then
+        echo "Cleaning log file to remove duplicates..."
+        # Create a temporary file with unique lines only
+        awk '!seen[$0]++' "$log_file" > "${log_file}.tmp"
+        # Replace original with cleaned version
+        mv "${log_file}.tmp" "$log_file"
+    fi
+}
+
+# Clean the log file before starting the log viewer
+clean_log_file
+
 # Start log viewer early to monitor the installation process
 cd /workspace
 CUDA_VISIBLE_DEVICES="" python /log_viewer.py &
@@ -252,8 +267,17 @@ sleep 5
 cd /workspace/ComfyUI
 # Clear any existing CUDA cache
 python3 -c "import torch; torch.cuda.empty_cache()" || true
-# Start ComfyUI with error handling
-python main.py --listen 0.0.0.0 --port 8188 2>&1 | tee /workspace/logs/comfyui.log &
+# Add a clear marker in the log file
+echo "====================================================================" | tee -a /workspace/logs/comfyui.log
+echo "============ ComfyUI STARTING $(date) ============" | tee -a /workspace/logs/comfyui.log
+echo "====================================================================" | tee -a /workspace/logs/comfyui.log
+# Start ComfyUI with proper logging
+echo "Starting ComfyUI on port 8188..." | tee -a /workspace/logs/comfyui.log
+# Use unbuffer to ensure output is line-buffered for better real-time logging
+python main.py --listen 0.0.0.0 --port 8188 2>&1 | tee -a /workspace/logs/comfyui.log &
+# Record the PID of the ComfyUI process
+COMFY_PID=$!
+echo "ComfyUI started with PID: $COMFY_PID" | tee -a /workspace/logs/comfyui.log
 
 # Wait for all processes
 wait 

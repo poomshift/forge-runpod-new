@@ -5,18 +5,24 @@ import requests
 import subprocess
 from pathlib import Path
 import logging
+import sys
 
-# Set up logging to both console and file
+# Prevent duplicate logging
+logging.getLogger().handlers = []
+
+# Set up logging to file only, since stdout is already captured by tee in start.sh
 log_file_path = '/workspace/logs/comfyui.log'
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(log_file_path),
-        logging.StreamHandler()
-    ]
-)
+file_handler = logging.FileHandler(log_file_path)
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(file_handler)
+
+# Also log to stdout for visibility
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logger.addHandler(stdout_handler)
 
 def download_file(url, output_path):
     """Download a file using aria2c with optimized settings for faster downloads"""
@@ -25,7 +31,7 @@ def download_file(url, output_path):
     
     cmd = [
         'aria2c',
-        '--console-log-level=info',  # Changed to info to see progress
+        '--console-log-level=warn',  # Reduce verbosity to warnings only
         '-c',  # Continue downloading if partial file exists
         '-x', '16',  # Increase concurrent connections to 16
         '-s', '16',  # Split file into 16 parts
@@ -45,25 +51,17 @@ def download_file(url, output_path):
     ]
     
     try:
-        logger.info(f"Command: {' '.join(cmd)}")
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+        logger.info(f"Running download command for {filename}")
+        # Run process with simple call instead of monitoring output
+        result = subprocess.run(cmd, capture_output=True, text=True)
         
-        # Log the download progress
-        for line in process.stdout:
-            line = line.strip()
-            if line:
-                logger.info(line)
-        
-        process.wait()
-        if process.returncode == 0:
+        if result.returncode == 0:
             logger.info(f"Successfully downloaded {filename}")
             return True
         else:
-            logger.error(f"Failed to download {filename}: Return code {process.returncode}")
+            error_msg = result.stderr or result.stdout
+            logger.error(f"Failed to download {filename}: {error_msg}")
             return False
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to download {url}: {e}")
-        return False
     except Exception as e:
         logger.error(f"Unexpected error while downloading {url}: {e}")
         return False

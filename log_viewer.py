@@ -1,37 +1,21 @@
 from flask import Flask, render_template_string, make_response, jsonify, send_file, request
 import os
-import psutil
-import GPUtil
-from datetime import datetime
 import threading
 import time
 import subprocess
-import signal
 import sys
 import platform
 import zipfile
 import io
 import urllib.parse
 from flask_socketio import SocketIO, emit
+from datetime import datetime
 
 # Initialize Flask and SocketIO with CORS
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Global variables to store stats and logs
-system_stats = {
-    'cpu': {
-        'percent': 0, 
-        'cores': [],
-        'model': 'Unknown CPU',
-        'frequency': 0
-    },
-    'memory': {'percent': 0, 'used': 0, 'total': 0},
-    'gpu': {'name': 'N/A', 'percent': 0, 'memory_used': 0, 'memory_total': 0, 'temp': 0},
-    'disk': {'percent': 0, 'used': 0, 'total': 0},
-    'timestamp': ''
-}
-
+# Global variables to store logs
 log_buffer = []
 log_lock = threading.Lock()
 
@@ -40,7 +24,7 @@ HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>ComfyUI Control Center | Performance Monitor & Logs</title>
+    <title>ComfyUI Log Viewer</title>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -97,6 +81,7 @@ HTML_TEMPLATE = '''
             background: var(--card-bg);
             border-radius: 12px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
         }
         
         .header h1 {
@@ -112,23 +97,15 @@ HTML_TEMPLATE = '''
             min-height: 0;
         }
         
-        .monitor-section {
-            width: 400px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            overflow-y: auto;
-        }
-        
         .logs-section {
-            flex: 1;
+            flex: 2;
             display: flex;
             flex-direction: column;
             min-width: 0;
         }
         
         .downloader-section {
-            width: 500px;
+            flex: 1;
             display: flex;
             flex-direction: column;
             gap: 20px;
@@ -147,36 +124,6 @@ HTML_TEMPLATE = '''
             margin: 0 0 16px 0;
             font-size: 18px;
             color: var(--text-color);
-        }
-        
-        .stat {
-            display: flex;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-        
-        .stat-label {
-            flex: 1;
-            color: var(--text-secondary);
-        }
-        
-        .stat-value {
-            font-weight: 500;
-        }
-        
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: var(--progress-bg);
-            border-radius: 4px;
-            overflow: hidden;
-            margin-top: 8px;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: var(--primary-color);
-            transition: width 0.3s ease;
         }
         
         .controls {
@@ -213,12 +160,7 @@ HTML_TEMPLATE = '''
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             color: var(--text-color);
             transition: background-color 0.3s, color 0.3s;
-        }
-        
-        .timestamp {
-            color: var(--text-secondary);
-            font-size: 12px;
-            margin-top: 8px;
+            min-height: 600px;
         }
         
         /* Scrollbar styling */
@@ -329,6 +271,28 @@ HTML_TEMPLATE = '''
         .download-button:hover {
             background-color: #1d4ed8;
         }
+        
+        .comfyui-button {
+            background-color: #10b981;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .comfyui-button:hover {
+            background-color: #059669;
+        }
+        
+        .comfyui-button.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        
+        .arrow {
+            font-size: 18px;
+        }
 
         .download-form {
             background: var(--card-bg);
@@ -388,6 +352,28 @@ HTML_TEMPLATE = '''
             background: #fee2e2;
             color: #991b1b;
         }
+        
+        .notification {
+            margin-top: 10px;
+            padding: 12px;
+            border-radius: 6px;
+            background: #f0f9ff;
+            color: #0369a1;
+            display: none;
+        }
+        
+        {% if is_runpod %}
+        /* Additional RunPod-specific styles */
+        .runpod-badge {
+            display: inline-flex;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        {% endif %}
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
@@ -423,10 +409,6 @@ HTML_TEMPLATE = '''
         function initializeWebSocket() {
             socket = io();
             
-            socket.on('system_stats', function(stats) {
-                updateSystemStatsDisplay(stats);
-            });
-            
             socket.on('new_log_line', function(data) {
                 appendLogLine(data.line);
             });
@@ -446,29 +428,6 @@ HTML_TEMPLATE = '''
             if (autoScroll && !userScrolled) {
                 scrollToBottom(logContainer);
             }
-        }
-        
-        function updateSystemStatsDisplay(stats) {
-            document.getElementById('cpu-model').textContent = 
-                `${stats.cpu.model}${stats.cpu.frequency ? ` @ ${stats.cpu.frequency.toFixed(2)} MHz` : ''}`;
-            document.getElementById('cpu-usage').textContent = `${stats.cpu.percent.toFixed(1)}%`;
-            document.getElementById('cpu-bar').style.width = `${stats.cpu.percent}%`;
-            
-            document.getElementById('memory-usage').textContent = 
-                `${stats.memory.used}GB / ${stats.memory.total}GB (${stats.memory.percent}%)`;
-            document.getElementById('memory-bar').style.width = `${stats.memory.percent}%`;
-            
-            document.getElementById('gpu-name').textContent = stats.gpu.name;
-            document.getElementById('gpu-usage').textContent = 
-                `${stats.gpu.percent.toFixed(1)}% | ${stats.gpu.memory_used}MB / ${stats.gpu.memory_total}MB`;
-            document.getElementById('gpu-temp').textContent = `${stats.gpu.temp}°C`;
-            document.getElementById('gpu-bar').style.width = `${stats.gpu.percent}%`;
-            
-            document.getElementById('disk-usage').textContent = 
-                `${stats.disk.used}GB / ${stats.disk.total}GB (${stats.disk.percent}%)`;
-            document.getElementById('disk-bar').style.width = `${stats.disk.percent}%`;
-            
-            document.getElementById('last-update').textContent = `Last updated: ${stats.timestamp}`;
         }
         
         function scrollToBottom(element) {
@@ -499,10 +458,47 @@ HTML_TEMPLATE = '''
             });
             
             scrollToBottom(logContainer);
+            
+            // Check if ComfyUI is running
+            checkComfyUIStatus();
         });
 
         function isScrolledToBottom(element) {
             return Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) < 1;
+        }
+        
+        function checkComfyUIStatus() {
+            const comfyUrl = '{{ proxy_url }}';
+            const statusElement = document.getElementById('comfyui-status');
+            
+            fetch(comfyUrl, { method: 'HEAD', mode: 'no-cors' })
+                .then(() => {
+                    // If we get here, the request didn't throw an error
+                    statusElement.style.display = 'none';
+                    document.getElementById('comfyui-button').classList.remove('disabled');
+                })
+                .catch(() => {
+                    // Show notification that ComfyUI might not be ready
+                    statusElement.style.display = 'block';
+                    statusElement.textContent = 'ComfyUI may still be starting. Check logs for progress.';
+                    // Check again in 10 seconds
+                    setTimeout(checkComfyUIStatus, 10000);
+                });
+        }
+
+        function refreshLogs() {
+            fetch('/refresh_logs')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Logs refreshed successfully');
+                    } else {
+                        console.error('Error refreshing logs:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Failed to refresh logs:', error);
+                });
         }
 
         function downloadFromCivitai() {
@@ -570,14 +566,15 @@ HTML_TEMPLATE = '''
 </head>
 <body>
     <div class="container">
-    <div class="header">
+        <div class="header">
             <div class="title-section">
-                <h1>ComfyUI Control Center</h1>
-                <span class="title-badge">Performance Monitor & Logs</span>
+                <h1>ComfyUI Log Viewer</h1>
             </div>
             <div class="controls">
                 <div class="control-group">
                     <a href="/download/outputs" class="download-button">Download Outputs</a>
+                    <a href="{{ proxy_url }}" target="_blank" id="comfyui-button" class="download-button comfyui-button">Open ComfyUI <span class="arrow">→</span></a>
+                    <button onclick="refreshLogs()" class="download-button">Refresh Logs</button>
                     <div class="divider"></div>
                     <div class="theme-switch">
                         <span id="theme-icon" class="icon">☀️</span>
@@ -587,67 +584,11 @@ HTML_TEMPLATE = '''
                         </label>
                     </div>
                 </div>
+                <div id="comfyui-status" class="notification">Checking ComfyUI status...</div>
             </div>
         </div>
         
         <div class="main-content">
-            <div class="monitor-section">
-                <div class="card">
-                    <h2>CPU Usage</h2>
-                    <div class="model-info" id="cpu-model">Unknown CPU</div>
-                    <div class="stat">
-                        <span class="stat-label">Total Usage</span>
-                        <span class="stat-value" id="cpu-usage">0%</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="cpu-bar" style="width: 0%"></div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h2>Memory Usage</h2>
-                    <div class="stat">
-                        <span class="stat-label">RAM Usage</span>
-                        <span class="stat-value" id="memory-usage">0GB / 0GB (0%)</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="memory-bar" style="width: 0%"></div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h2>GPU Status</h2>
-                    <div class="stat">
-                        <span class="stat-label">GPU Model</span>
-                        <span class="stat-value" id="gpu-name">N/A</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Usage & Memory</span>
-                        <span class="stat-value" id="gpu-usage">0% | 0MB / 0MB</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Temperature</span>
-                        <span class="stat-value" id="gpu-temp">0°C</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="gpu-bar" style="width: 0%"></div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h2>Disk Usage</h2>
-                    <div class="stat">
-                        <span class="stat-label">Storage</span>
-                        <span class="stat-value" id="disk-usage">0GB / 0GB (0%)</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="disk-bar" style="width: 0%"></div>
-                    </div>
-                </div>
-                
-                <div class="timestamp" id="last-update"></div>
-            </div>
-            
             <div class="logs-section">
                 <div id="log-container">{{ logs }}</div>
             </div>
@@ -715,73 +656,6 @@ HTML_TEMPLATE = '''
 </html>
 '''
 
-def get_cpu_info():
-    try:
-        if platform.system() == "Windows":
-            import winreg
-            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0")
-            model = winreg.QueryValueEx(key, "ProcessorNameString")[0]
-            winreg.CloseKey(key)
-        else:
-            with open('/proc/cpuinfo') as f:
-                for line in f:
-                    if line.startswith('model name'):
-                        model = line.split(':')[1].strip()
-                        break
-                else:
-                    model = platform.processor()
-    except:
-        model = platform.processor() or "Unknown CPU"
-    return model
-
-def update_system_stats():
-    # Get CPU model once at startup
-    system_stats['cpu']['model'] = get_cpu_info()
-    
-    while True:
-        try:
-            # CPU stats
-            system_stats['cpu']['percent'] = psutil.cpu_percent(interval=1)
-            system_stats['cpu']['cores'] = psutil.cpu_percent(interval=1, percpu=True)
-            system_stats['cpu']['frequency'] = psutil.cpu_freq().current if psutil.cpu_freq() else 0
-            
-            # Memory stats
-            memory = psutil.virtual_memory()
-            system_stats['memory']['percent'] = memory.percent
-            system_stats['memory']['used'] = memory.used // (1024 * 1024 * 1024)  # Convert to GB
-            system_stats['memory']['total'] = memory.total // (1024 * 1024 * 1024)  # Convert to GB
-            
-            # GPU stats
-            try:
-                gpus = GPUtil.getGPUs()
-                if gpus:
-                    gpu = gpus[0]  # Get first GPU
-                    system_stats['gpu'] = {
-                        'name': gpu.name,
-                        'percent': gpu.load * 100,
-                        'memory_used': gpu.memoryUsed,
-                        'memory_total': gpu.memoryTotal,
-                        'temp': gpu.temperature
-                    }
-            except Exception:
-                pass  # GPU info not available
-            
-            # Disk stats
-            disk = psutil.disk_usage('/')
-            system_stats['disk']['percent'] = disk.percent
-            system_stats['disk']['used'] = disk.used // (1024 * 1024 * 1024)  # Convert to GB
-            system_stats['disk']['total'] = disk.total // (1024 * 1024 * 1024)  # Convert to GB
-            
-            system_stats['timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            
-            # Emit system stats via WebSocket
-            socketio.emit('system_stats', system_stats)
-            
-            time.sleep(2)  # Update every 2 seconds
-        except Exception as e:
-            print(f"Error updating system stats: {e}")
-            time.sleep(5)  # Wait before retrying
-
 def tail_log_file():
     """Continuously tail the log file and update the buffer"""
     log_file = os.path.join('logs', 'comfyui.log')
@@ -790,47 +664,68 @@ def tail_log_file():
         os.makedirs('logs', exist_ok=True)
         open(log_file, 'a').close()
     
-    def follow(file):
-        """Generator function that yields new lines in a file"""
-        file.seek(0, 2)  # Go to the end of the file
+    def follow(file_path):
+        """Generator function that yields new lines in a file with proper handling of file rotation/truncation"""
+        current_position = 0
         while True:
-            line = file.readline()
-            if not line:
-                time.sleep(0.1)  # Sleep briefly
-                continue
-            yield line
+            try:
+                # Re-open the file on each iteration to detect file truncation or rotation
+                with open(file_path, 'r') as file:
+                    # Check if file has been truncated
+                    file_size = os.path.getsize(file_path)
+                    if file_size < current_position:
+                        current_position = 0  # File was truncated, start from beginning
+                    
+                    # Seek to last position
+                    file.seek(current_position)
+                    
+                    # Read new lines
+                    new_lines = file.readlines()
+                    if new_lines:
+                        current_position = file.tell()
+                        for line in new_lines:
+                            yield line
+                    else:
+                        # No new lines, sleep before checking again
+                        time.sleep(0.1)
+            except Exception as e:
+                print(f"Error following log file: {e}")
+                time.sleep(1)  # Wait a bit longer on error
 
     try:
+        # Load initial content
         with open(log_file, 'r') as file:
-            # First, get existing content (last 500 lines)
-            file.seek(0, 2)
-            file_size = file.tell()
-            block_size = 1024
-            blocks = []
+            content = file.readlines()
+            processed_content = []
             
-            while file_size > 0 and len(blocks) < 500:
-                seek_size = min(file_size, block_size)
-                file.seek(file_size - seek_size)
-                blocks.insert(0, file.read(seek_size))
-                file_size -= seek_size
+            # Keep only the last 500 lines and filter duplicates
+            content = content[-500:] if len(content) > 500 else content
+            prev_line = None
+            for line in content:
+                stripped_line = line.strip()
+                if stripped_line and stripped_line != prev_line:
+                    processed_content.append(stripped_line)
+                prev_line = stripped_line
             
-            content = ''.join(blocks).splitlines()[-500:]
             with log_lock:
-                log_buffer.extend(content)
-                if len(log_buffer) > 500:
-                    log_buffer[:] = log_buffer[-500:]
+                log_buffer.clear()
+                log_buffer.extend(processed_content)
             
             # Emit initial logs
             socketio.emit('logs', {'logs': get_current_logs()})
-            
-            # Then follow the file for new content
-            for line in follow(file):
+        
+        # Start the continuous tail
+        prev_line = None
+        for line in follow(log_file):
+            stripped_line = line.strip()
+            if stripped_line and stripped_line != prev_line:  # Only process non-empty lines and not duplicates
                 with log_lock:
-                    log_buffer.append(line.strip())
+                    log_buffer.append(stripped_line)
                     if len(log_buffer) > 500:
                         log_buffer.pop(0)
                 # Emit new log line via WebSocket
-                socketio.emit('new_log_line', {'line': line.strip()})
+                socketio.emit('new_log_line', {'line': stripped_line})
+            prev_line = stripped_line
     except Exception as e:
         print(f"Error tailing log file: {e}")
         time.sleep(5)
@@ -841,7 +736,18 @@ def get_current_logs():
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         header = f"Log Viewer - Last {len(log_buffer)} lines (as of {timestamp})\n"
         header += "=" * 80 + "\n\n"
-        return header + '\n'.join(log_buffer)
+        
+        # Return log buffer with duplicate consecutive lines removed
+        if log_buffer:
+            filtered_logs = []
+            prev_line = None
+            for line in log_buffer:
+                if line != prev_line:
+                    filtered_logs.append(line)
+                prev_line = line
+            return header + '\n'.join(filtered_logs)
+        else:
+            return header + "No logs yet."
 
 def create_output_zip():
     """Create a zip file of the ComfyUI output directory"""
@@ -930,13 +836,40 @@ def download_from_huggingface(url, model_type="loras"):
     except Exception as e:
         return {"success": False, "message": f"Error during download: {str(e)}"}
 
-@app.route('/system_stats')
-def get_system_stats():
-    return jsonify(system_stats)
-
 @app.route('/logs')
 def get_logs():
     return jsonify({'logs': get_current_logs()})
+
+@app.route('/refresh_logs')
+def refresh_logs():
+    """Force a refresh of the logs. Useful when log file has been externally updated."""
+    try:
+        with log_lock:
+            log_buffer.clear()
+        
+        # Reload logs from file
+        log_file = os.path.join('logs', 'comfyui.log')
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as file:
+                content = file.readlines()
+                processed_content = []
+                
+                # Keep only the last 500 lines and filter duplicates
+                content = content[-500:] if len(content) > 500 else content
+                prev_line = None
+                for line in content:
+                    stripped_line = line.strip()
+                    if stripped_line and stripped_line != prev_line:
+                        processed_content.append(stripped_line)
+                    prev_line = stripped_line
+                
+                with log_lock:
+                    log_buffer.extend(processed_content)
+        
+        socketio.emit('logs', {'logs': get_current_logs()})
+        return jsonify({'success': True, 'message': 'Logs refreshed successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error refreshing logs: {str(e)}'})
 
 @app.route('/download/outputs')
 def download_outputs():
@@ -980,17 +913,34 @@ def download_huggingface():
 @app.route('/')
 def index():
     logs = get_current_logs()
-    response = make_response(render_template_string(HTML_TEMPLATE, logs=logs))
+    
+    # Detect if we're running in RunPod by checking environment variables
+    is_runpod = 'RUNPOD_POD_ID' in os.environ
+    
+    # Get the RunPod proxy host and port
+    if is_runpod:
+        # In RunPod, we use the public FQDN provided by RunPod for the proxy
+        # Format: https://{pod_id}-{port}.proxy.runpod.net
+        pod_id = os.environ.get('RUNPOD_POD_ID', '')
+        proxy_port = '8188'  # ComfyUI port
+        proxy_host = f"{pod_id}-{proxy_port}.proxy.runpod.net"
+        proxy_url = f"https://{proxy_host}"
+    else:
+        # For local development or other environments
+        proxy_host = request.host.split(':')[0]
+        proxy_port = '8188'
+        proxy_url = f"http://{proxy_host}:{proxy_port}"
+    
+    response = make_response(render_template_string(HTML_TEMPLATE, 
+                                                    logs=logs, 
+                                                    proxy_url=proxy_url,
+                                                    is_runpod=is_runpod))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
 
 if __name__ == '__main__':
-    print("Starting system stats monitoring thread...")
-    stats_thread = threading.Thread(target=update_system_stats, daemon=True)
-    stats_thread.start()
-    
     print("Starting log monitoring thread...")
     log_thread = threading.Thread(target=tail_log_file, daemon=True)
     log_thread.start()
