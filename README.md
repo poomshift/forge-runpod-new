@@ -1,37 +1,66 @@
-# Hunyuan ComfyUI Docker
+# ComfyUI Docker
 
-A comprehensive Docker setup for running Hunyuan video generation with ComfyUI, featuring real-time monitoring and automatic model management.
+This repository contains a Docker setup for running ComfyUI with Hunyuan video generation capabilities.
 
 ## Features
 
-- **Hunyuan Video Generation**: Pre-configured with all necessary models and custom nodes
-- **Real-time Monitoring**: Web-based interface for system and process monitoring
-- **Dynamic Model Management**: Flexible model downloading system
-- **Jupyter Integration**: Built-in Jupyter Lab for development
-- **Auto-Update System**: Optional automatic updates for ComfyUI and custom nodes
+- ComfyUI with pre-installed custom nodes
+- Hunyuan video generation support
+- Web-based log viewer
+- Model downloading system
+- GitHub Actions workflow for automatic Docker image building
 
-## Quick Start
+## Usage
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/[your-username]/hunyuan-comfyui-docker.git
-   cd hunyuan-comfyui-docker
-   ```
+### Running the Docker Image
 
-2. **Configure model sources**:
-   - Edit `models_config.json` with your model URLs
-   - Place local LORA models in the `models/` directory
+```bash
+docker run -it --gpus all -p 8188:8188 -p 8888:8888 -p 8189:8189 ghcr.io/poomshift/comfyui-docker-new:latest
+```
 
-3. **Build and run**:
-   ```bash
-   docker build -t hunyuan-comfyui .
-   docker run -d \
-     --gpus all \
-     -p 8188:8188 \
-     -p 8189:8189 \
-     -p 8888:8888 \
-     hunyuan-comfyui
-   ```
+- Port 8188: ComfyUI interface
+- Port 8888: Jupyter Lab
+- Port 8189: Log viewer
+
+### Environment Variables
+
+- `UPDATE_ON_START`: Set to "true" to update ComfyUI and nodes on startup (default: false)
+- `MODELS_CONFIG_URL`: URL to models configuration JSON (default: from this repository)
+- `SKIP_MODEL_DOWNLOAD`: Set to "true" to skip model downloading (default: false)
+- `FORCE_MODEL_DOWNLOAD`: Set to "true" to force re-download models (default: false)
+
+## GitHub Actions Workflow
+
+This repository includes a GitHub Actions workflow that automatically builds and publishes the Docker image to GitHub Container Registry (ghcr.io) whenever changes are pushed to the main branch.
+
+### How it works
+
+1. When code is pushed to the main branch, the workflow is triggered
+2. The workflow builds the Docker image using the Dockerfile
+3. The image is tagged and pushed to GitHub Container Registry
+4. The image is available at `ghcr.io/poomshift/comfyui-docker-new:latest`
+
+### Using the workflow
+
+To use the GitHub Actions workflow:
+
+1. Ensure your repository has the necessary permissions to publish packages
+2. Push changes to the main branch to trigger the workflow
+3. Check the "Actions" tab in your GitHub repository to monitor the build progress
+4. Once complete, pull the image from ghcr.io
+
+### Manual trigger
+
+You can also manually trigger the workflow from the "Actions" tab in your GitHub repository.
+
+## Development
+
+To modify the Docker image:
+
+1. Edit the `dockerfile` to add or change components
+2. Update `models_config.json` to change which models are downloaded
+3. Modify `start.sh` to change startup behavior
+4. Push changes to GitHub to trigger the automatic build
 
 ## Directory Structure
 
