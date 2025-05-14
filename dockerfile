@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y software-properties-common && \
     git \
     python3.12 \
     python3.12-venv \
+    python3.12-dev \
     python3-pip \
     build-essential \
     libgl1-mesa-glx \
@@ -23,7 +24,7 @@ RUN apt-get update && apt-get install -y software-properties-common && \
     && rm -rf /var/lib/apt/lists/*
 
 # Create and activate virtual environment
-RUN python3 -m venv /opt/venv
+RUN python3.12 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Set working directory
