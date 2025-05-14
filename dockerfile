@@ -28,7 +28,6 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Set working directory
 WORKDIR /workspace
 
-
 # Clone ComfyUI and install dependencies
 RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI && \
     cd ComfyUI && \
@@ -41,22 +40,8 @@ RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI && \
 RUN mkdir -p ComfyUI/models/{checkpoints,vae,unet,diffusion_models,text_encoders,loras} \
     ComfyUI/input \
     ComfyUI/output \
+    ComfyUI/custom_nodes \
     logs
-
-# Clone custom nodes and install requirements
-WORKDIR /workspace/ComfyUI/custom_nodes
-RUN git clone --depth=1 https://github.com/ltdrdata/ComfyUI-Manager.git && \
-    git clone --depth=1 https://github.com/cubiq/ComfyUI_essentials && \
-    git clone --depth=1 https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite && \
-    git clone --depth=1 https://github.com/kijai/ComfyUI-KJNodes && \
-    git clone --depth=1 https://github.com/city96/ComfyUI-GGUF && \
-    git clone --depth=1 https://github.com/ltdrdata/ComfyUI-Inspire-Pack && \
-    git clone --depth=1 https://github.com/pythongosssss/ComfyUI-Custom-Scripts && \
-    git clone --depth=1 https://github.com/rgthree/rgthree-comfy && \
-    git clone --depth=1 https://github.com/facok/ComfyUI-TeaCacheHunyuanVideo && \
-    git clone --depth=1 https://github.com/chengzeyi/Comfy-WaveSpeed && \
-    git clone --depth=1 https://github.com/kijai/ComfyUI-HunyuanVideoWrapper && \
-    find . -name "requirements.txt" -exec pip install --no-cache-dir -r {} \;
 
 # Setup Jupyter configuration
 RUN jupyter notebook --generate-config && \
