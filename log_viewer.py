@@ -1,8 +1,5 @@
 from flask import Flask, render_template_string, make_response, jsonify, send_file, request
 import os
-import psutil
-import GPUtil
-from datetime import datetime
 import threading
 import time
 import subprocess
@@ -18,20 +15,7 @@ from flask_socketio import SocketIO, emit
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Global variables to store stats and logs
-system_stats = {
-    'cpu': {
-        'percent': 0, 
-        'cores': [],
-        'model': 'Unknown CPU',
-        'frequency': 0
-    },
-    'memory': {'percent': 0, 'used': 0, 'total': 0},
-    'gpu': {'name': 'N/A', 'percent': 0, 'memory_used': 0, 'memory_total': 0, 'temp': 0},
-    'disk': {'percent': 0, 'used': 0, 'total': 0},
-    'timestamp': ''
-}
-
+# Global variables to store logs
 log_buffer = []
 log_lock = threading.Lock()
 
@@ -40,7 +24,7 @@ HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>ComfyUI Control Center | Performance Monitor & Logs</title>
+    <title>ComfyUI Control Center | Logs</title>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -110,14 +94,6 @@ HTML_TEMPLATE = '''
             gap: 20px;
             flex: 1;
             min-height: 0;
-        }
-        
-        .monitor-section {
-            width: 400px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            overflow-y: auto;
         }
         
         .logs-section {
@@ -314,7 +290,7 @@ HTML_TEMPLATE = '''
             transition: background-color 0.3s, color 0.3s;
         }
 
-        .download-button {
+        .button {
             display: inline-flex;
             align-items: center;
             padding: 8px 16px;
@@ -324,9 +300,11 @@ HTML_TEMPLATE = '''
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.3s;
+            border: none;
+            cursor: pointer;
         }
         
-        .download-button:hover {
+        .button:hover {
             background-color: #1d4ed8;
         }
 
@@ -423,10 +401,6 @@ HTML_TEMPLATE = '''
         function initializeWebSocket() {
             socket = io();
             
-            socket.on('system_stats', function(stats) {
-                updateSystemStatsDisplay(stats);
-            });
-            
             socket.on('new_log_line', function(data) {
                 appendLogLine(data.line);
             });
@@ -448,29 +422,6 @@ HTML_TEMPLATE = '''
             }
         }
         
-        function updateSystemStatsDisplay(stats) {
-            document.getElementById('cpu-model').textContent = 
-                `${stats.cpu.model}${stats.cpu.frequency ? ` @ ${stats.cpu.frequency.toFixed(2)} MHz` : ''}`;
-            document.getElementById('cpu-usage').textContent = `${stats.cpu.percent.toFixed(1)}%`;
-            document.getElementById('cpu-bar').style.width = `${stats.cpu.percent}%`;
-            
-            document.getElementById('memory-usage').textContent = 
-                `${stats.memory.used}GB / ${stats.memory.total}GB (${stats.memory.percent}%)`;
-            document.getElementById('memory-bar').style.width = `${stats.memory.percent}%`;
-            
-            document.getElementById('gpu-name').textContent = stats.gpu.name;
-            document.getElementById('gpu-usage').textContent = 
-                `${stats.gpu.percent.toFixed(1)}% | ${stats.gpu.memory_used}MB / ${stats.gpu.memory_total}MB`;
-            document.getElementById('gpu-temp').textContent = `${stats.gpu.temp}°C`;
-            document.getElementById('gpu-bar').style.width = `${stats.gpu.percent}%`;
-            
-            document.getElementById('disk-usage').textContent = 
-                `${stats.disk.used}GB / ${stats.disk.total}GB (${stats.disk.percent}%)`;
-            document.getElementById('disk-bar').style.width = `${stats.disk.percent}%`;
-            
-            document.getElementById('last-update').textContent = `Last updated: ${stats.timestamp}`;
-        }
-        
         function scrollToBottom(element) {
             element.scrollTop = element.scrollHeight;
         }
@@ -482,6 +433,10 @@ HTML_TEMPLATE = '''
                 const logContainer = document.getElementById('log-container');
                 scrollToBottom(logContainer);
             }
+        }
+        
+        function openComfyUI() {
+            window.open('http://' + window.location.hostname + ':8888', '_blank');
         }
         
         document.addEventListener('DOMContentLoaded', function() {
@@ -573,11 +528,12 @@ HTML_TEMPLATE = '''
     <div class="header">
             <div class="title-section">
                 <h1>ComfyUI Control Center</h1>
-                <span class="title-badge">Performance Monitor & Logs</span>
+                <span class="title-badge">Logs</span>
             </div>
             <div class="controls">
                 <div class="control-group">
-                    <a href="/download/outputs" class="download-button">Download Outputs</a>
+                    <a href="/download/outputs" class="button">Download Outputs</a>
+                    <button onclick="openComfyUI()" class="button">Open ComfyUI (Port 8888)</button>
                     <div class="divider"></div>
                     <div class="theme-switch">
                         <span id="theme-icon" class="icon">☀️</span>
@@ -591,63 +547,6 @@ HTML_TEMPLATE = '''
         </div>
         
         <div class="main-content">
-            <div class="monitor-section">
-                <div class="card">
-                    <h2>CPU Usage</h2>
-                    <div class="model-info" id="cpu-model">Unknown CPU</div>
-                    <div class="stat">
-                        <span class="stat-label">Total Usage</span>
-                        <span class="stat-value" id="cpu-usage">0%</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="cpu-bar" style="width: 0%"></div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h2>Memory Usage</h2>
-                    <div class="stat">
-                        <span class="stat-label">RAM Usage</span>
-                        <span class="stat-value" id="memory-usage">0GB / 0GB (0%)</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="memory-bar" style="width: 0%"></div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h2>GPU Status</h2>
-                    <div class="stat">
-                        <span class="stat-label">GPU Model</span>
-                        <span class="stat-value" id="gpu-name">N/A</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Usage & Memory</span>
-                        <span class="stat-value" id="gpu-usage">0% | 0MB / 0MB</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Temperature</span>
-                        <span class="stat-value" id="gpu-temp">0°C</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="gpu-bar" style="width: 0%"></div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h2>Disk Usage</h2>
-                    <div class="stat">
-                        <span class="stat-label">Storage</span>
-                        <span class="stat-value" id="disk-usage">0GB / 0GB (0%)</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="disk-bar" style="width: 0%"></div>
-                    </div>
-                </div>
-                
-                <div class="timestamp" id="last-update"></div>
-            </div>
-            
             <div class="logs-section">
                 <div id="log-container">{{ logs }}</div>
             </div>
@@ -675,7 +574,7 @@ HTML_TEMPLATE = '''
                             <option value="text_encoders">Text Encoder</option>
                         </select>
                     </div>
-                    <button onclick="downloadFromCivitai()" class="download-button">Download Model</button>
+                    <button onclick="downloadFromCivitai()" class="button">Download Model</button>
                     <div id="downloadStatus"></div>
                 </div>
 
@@ -697,7 +596,7 @@ HTML_TEMPLATE = '''
                             <option value="text_encoders">Text Encoder</option>
                         </select>
                     </div>
-                    <button onclick="downloadFromHuggingFace()" class="download-button">Download Model</button>
+                    <button onclick="downloadFromHuggingFace()" class="button">Download Model</button>
                     <div id="hfDownloadStatus"></div>
                 </div>
             </div>
@@ -714,73 +613,6 @@ HTML_TEMPLATE = '''
 </body>
 </html>
 '''
-
-def get_cpu_info():
-    try:
-        if platform.system() == "Windows":
-            import winreg
-            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0")
-            model = winreg.QueryValueEx(key, "ProcessorNameString")[0]
-            winreg.CloseKey(key)
-        else:
-            with open('/proc/cpuinfo') as f:
-                for line in f:
-                    if line.startswith('model name'):
-                        model = line.split(':')[1].strip()
-                        break
-                else:
-                    model = platform.processor()
-    except:
-        model = platform.processor() or "Unknown CPU"
-    return model
-
-def update_system_stats():
-    # Get CPU model once at startup
-    system_stats['cpu']['model'] = get_cpu_info()
-    
-    while True:
-        try:
-            # CPU stats
-            system_stats['cpu']['percent'] = psutil.cpu_percent(interval=1)
-            system_stats['cpu']['cores'] = psutil.cpu_percent(interval=1, percpu=True)
-            system_stats['cpu']['frequency'] = psutil.cpu_freq().current if psutil.cpu_freq() else 0
-            
-            # Memory stats
-            memory = psutil.virtual_memory()
-            system_stats['memory']['percent'] = memory.percent
-            system_stats['memory']['used'] = memory.used // (1024 * 1024 * 1024)  # Convert to GB
-            system_stats['memory']['total'] = memory.total // (1024 * 1024 * 1024)  # Convert to GB
-            
-            # GPU stats
-            try:
-                gpus = GPUtil.getGPUs()
-                if gpus:
-                    gpu = gpus[0]  # Get first GPU
-                    system_stats['gpu'] = {
-                        'name': gpu.name,
-                        'percent': gpu.load * 100,
-                        'memory_used': gpu.memoryUsed,
-                        'memory_total': gpu.memoryTotal,
-                        'temp': gpu.temperature
-                    }
-            except Exception:
-                pass  # GPU info not available
-            
-            # Disk stats
-            disk = psutil.disk_usage('/')
-            system_stats['disk']['percent'] = disk.percent
-            system_stats['disk']['used'] = disk.used // (1024 * 1024 * 1024)  # Convert to GB
-            system_stats['disk']['total'] = disk.total // (1024 * 1024 * 1024)  # Convert to GB
-            
-            system_stats['timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            
-            # Emit system stats via WebSocket
-            socketio.emit('system_stats', system_stats)
-            
-            time.sleep(2)  # Update every 2 seconds
-        except Exception as e:
-            print(f"Error updating system stats: {e}")
-            time.sleep(5)  # Wait before retrying
 
 def tail_log_file():
     """Continuously tail the log file and update the buffer"""
@@ -914,10 +746,6 @@ def download_from_huggingface(url, model_type="loras"):
     except Exception as e:
         return {"success": False, "message": f"Error during download: {str(e)}"}
 
-@app.route('/system_stats')
-def get_system_stats():
-    return jsonify(system_stats)
-
 @app.route('/logs')
 def get_logs():
     return jsonify({'logs': get_current_logs()})
@@ -971,10 +799,6 @@ def index():
     return response
 
 if __name__ == '__main__':
-    print("Starting system stats monitoring thread...")
-    stats_thread = threading.Thread(target=update_system_stats, daemon=True)
-    stats_thread.start()
-    
     print("Starting log monitoring thread...")
     log_thread = threading.Thread(target=tail_log_file, daemon=True)
     log_thread.start()

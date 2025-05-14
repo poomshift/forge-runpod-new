@@ -67,10 +67,6 @@ RUN jupyter notebook --generate-config && \
 # Copy scripts
 COPY download_models.py update.sh start.sh log_viewer.py /workspace/
 
-# Copy local LORA models
-COPY models/studio_ghibli_hv_v03_19.safetensors /workspace/ComfyUI/models/loras/
-COPY models/hunyuan_flat_color_v2.safetensors /workspace/ComfyUI/models/loras/
-
 # Set environment variables for configuration
 ENV UPDATE_ON_START=false \
     MODELS_CONFIG_URL=https://huggingface.co/Patarapoom/model/resolve/main/models_config.json \

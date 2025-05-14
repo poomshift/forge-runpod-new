@@ -61,7 +61,7 @@ def ensure_directories(base_path):
 
 def main():
     # Environment variables
-    config_url = os.getenv('MODELS_CONFIG_URL', 'https://raw.githubusercontent.com/[your-repo]/main/models_config.json')
+    config_url = os.getenv('MODELS_CONFIG_URL', 'https://raw.githubusercontent.com/poomshift/comfyui-docker-new/refs/heads/main/models_config.json')
     skip_download = os.getenv('SKIP_MODEL_DOWNLOAD', '').lower() == 'true'
     force_download = os.getenv('FORCE_MODEL_DOWNLOAD', '').lower() == 'true'
     
