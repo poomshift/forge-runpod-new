@@ -5,6 +5,7 @@ echo "Updating ComfyUI and custom nodes..."
 cd /workspace/ComfyUI
 git pull
 pip install -r requirements.txt
+pip install triton SageAttention
 
 # Update custom nodes
 cd custom_nodes
