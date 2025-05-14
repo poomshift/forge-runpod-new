@@ -890,6 +890,28 @@ def get_installed_models():
     
     # Sort categories alphabetically
     return dict(sorted(result.items()))
+
+def get_current_logs():
+    """Get the current logs from the buffer"""
+    with log_lock:
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        header = f"Log Viewer - Last {len(log_buffer)} lines (as of {timestamp})\n"
+        header += "=" * 80 + "\n\n"
+        
+        # Return log buffer with duplicate consecutive lines removed
+        if log_buffer:
+            filtered_logs = []
+            prev_line = None
+            for line in log_buffer:
+                if line != prev_line:
+                    filtered_logs.append(line)
+                prev_line = line
+            return header + '\n'.join(filtered_logs)
+        else:
+            return header + "No logs yet."
+
+def tail_log_file():
+    """Continuously tail the log file and update the buffer"""
     log_file = os.path.join('logs', 'comfyui.log')
     
     if not os.path.exists(log_file):
@@ -961,25 +983,6 @@ def get_installed_models():
     except Exception as e:
         print(f"Error tailing log file: {e}")
         time.sleep(5)
-
-def tail_log_file():
-    """Continuously tail the log file and update the buffer"""
-    with log_lock:
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        header = f"Log Viewer - Last {len(log_buffer)} lines (as of {timestamp})\n"
-        header += "=" * 80 + "\n\n"
-        
-        # Return log buffer with duplicate consecutive lines removed
-        if log_buffer:
-            filtered_logs = []
-            prev_line = None
-            for line in log_buffer:
-                if line != prev_line:
-                    filtered_logs.append(line)
-                prev_line = line
-            return header + '\n'.join(filtered_logs)
-        else:
-            return header + "No logs yet."
 
 def create_output_zip():
     """Create a zip file of the ComfyUI output directory"""
