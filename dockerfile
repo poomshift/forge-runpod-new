@@ -6,11 +6,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
     PATH="${PATH}:/root/.local/bin:/root/.cargo/bin"
 
-# Install system dependencies (Ubuntu 24.04 already includes Python 3.12)
+# Install system dependencies 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
-    python3.12 \
-    python3.12-venv \
+    python3.10 \
+    python3.10-venv \
     python3-pip \
     build-essential \
     libgl1-mesa-dev \
@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Create and activate virtual environment
-RUN python3.12 -m venv /opt/venv
+RUN python3.10 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Set working directory to root
