@@ -15,7 +15,7 @@ This repository contains a Docker setup for running ComfyUI with Hunyuan video g
 ### Running the Docker Image
 
 ```bash
-docker run -it --gpus all -p 8188:8188 -p 8888:8888 -p 8189:8189 ghcr.io/poomshift/comfyui-docker-new:latest
+docker run -it --gpus all -p 8188:8188 -p 8888:8888 -p 8189:8189 promptalchemist/comfyui-docker-new:latest
 ```
 
 - Port 8188: ComfyUI interface
@@ -31,23 +31,25 @@ docker run -it --gpus all -p 8188:8188 -p 8888:8888 -p 8189:8189 ghcr.io/poomshi
 
 ## GitHub Actions Workflow
 
-This repository includes a GitHub Actions workflow that automatically builds and publishes the Docker image to GitHub Container Registry (ghcr.io) whenever changes are pushed to the main branch.
+This repository includes a GitHub Actions workflow that automatically builds and publishes the Docker image to Docker Hub whenever changes are pushed to the main branch.
 
 ### How it works
 
 1. When code is pushed to the main branch, the workflow is triggered
 2. The workflow builds the Docker image using the Dockerfile
-3. The image is tagged and pushed to GitHub Container Registry
-4. The image is available at `ghcr.io/poomshift/comfyui-docker-new:latest`
+3. The image is tagged and pushed to Docker Hub
+4. The image is available at `promptalchemist/comfyui-docker-new:latest`
 
 ### Using the workflow
 
 To use the GitHub Actions workflow:
 
-1. Ensure your repository has the necessary permissions to publish packages
+1. Set up Docker Hub secrets in your GitHub repository:
+   - `DOCKERHUB_USERNAME`: Your Docker Hub username
+   - `DOCKERHUB_TOKEN`: Your Docker Hub access token
 2. Push changes to the main branch to trigger the workflow
 3. Check the "Actions" tab in your GitHub repository to monitor the build progress
-4. Once complete, pull the image from ghcr.io
+4. Once complete, pull the image from Docker Hub
 
 ### Manual trigger
 
