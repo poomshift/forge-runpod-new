@@ -70,12 +70,9 @@ if [ ! -d "/workspace/ComfyUI/.git" ]; then
     # Install dependencies
     cd /workspace/ComfyUI
     echo "Installing PyTorch dependencies..." | tee -a /workspace/logs/comfyui.log
-    uv pip install --no-cache torch==2.7.0 torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu124 2>&1 | tee -a /workspace/logs/comfyui.log
+    uv pip install --no-cache torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu124 2>&1 | tee -a /workspace/logs/comfyui.log
     echo "Installing ComfyUI requirements..." | tee -a /workspace/logs/comfyui.log
     uv pip install --no-cache -r requirements.txt 2>&1 | tee -a /workspace/logs/comfyui.log
-    echo "Installing additional dependencies..." | tee -a /workspace/logs/comfyui.log
-    uv pip install --no-cache jupyter jupyterlab nodejs opencv-python requests runpod flask flask-socketio websocket-client psutil gputil 2>&1 | tee -a /workspace/logs/comfyui.log
-    uv pip install --no-cache triton SageAttention 2>&1 | tee -a /workspace/logs/comfyui.log
     
     # Create model directories
     mkdir -p /workspace/ComfyUI/models/{checkpoints,vae,unet,diffusion_models,text_encoders,loras,upscale_models,clip,controlnet,clip_vision,ipadapter,style_models}

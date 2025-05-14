@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.8.0-devel-ubuntu24.04 as builder
+FROM nvidia/cuda:12.4.0-devel-ubuntu22.04 as builder
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -33,7 +33,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /
 
 # Install Jupyter with uv
-RUN uv pip install jupyter jupyterlab
+RUN uv pip install jupyter jupyterlab nodejs opencv-python requests runpod flask flask-socketio websocket-client psutil gputil
 
 # Setup Jupyter configuration
 RUN jupyter notebook --generate-config && \
