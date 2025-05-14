@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.4.0-devel-ubuntu22.04 as builder
+FROM nvidia/cuda:12.8.0-devel-ubuntu22.04 as builder
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -9,8 +9,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
-    python3.10 \
-    python3.10-venv \
+    python3.12 \
+    python3.12-venv \
     python3-pip \
     build-essential \
     libgl1-mesa-glx \
@@ -30,7 +30,7 @@ WORKDIR /workspace
 # Clone ComfyUI and install dependencies
 RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI && \
     cd ComfyUI && \
-    pip3 install --no-cache-dir torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu124 && \
+    pip3 install --no-cache-dir torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu128 && \
     pip3 install --no-cache-dir -r requirements.txt && \
     pip3 install --no-cache-dir jupyter jupyterlab nodejs opencv-python requests runpod flask flask-socketio websocket-client psutil gputil
 
