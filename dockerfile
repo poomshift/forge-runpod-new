@@ -11,18 +11,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     python3.10 \
     python3.10-venv \
-    python3.10-dev \
     python3-pip \
     build-essential \
-    libgl1-mesa-glx \
+    libgl1-mesa-dev \
     libglib2.0-0 \
     wget \
-    curl \
     ffmpeg \
     aria2 \
     rsync \
     && rm -rf /var/lib/apt/lists/*
-    
+
 # Create and activate virtual environment
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
@@ -30,12 +28,14 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Set working directory
 WORKDIR /workspace
 
+
 # Clone ComfyUI and install dependencies
 RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI && \
     cd ComfyUI && \
-    pip install --no-cache-dir torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu128 && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir jupyter jupyterlab nodejs opencv-python requests runpod flask flask-socketio websocket-client psutil gputil
+    pip3 install --no-cache-dir torch==2.7.0 torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu128 && \
+    pip3 install --no-cache-dir -r requirements.txt && \
+    pip3 install --no-cache-dir jupyter jupyterlab nodejs opencv-python requests runpod flask flask-socketio websocket-client psutil gputil && \
+    pip3 install --no-cache-dir triton SageAttention
 
 # Create directory structure
 RUN mkdir -p ComfyUI/models/{checkpoints,vae,unet,diffusion_models,text_encoders,loras} \
@@ -72,7 +72,7 @@ COPY download_models.py update.sh start.sh log_viewer.py /workspace/
 
 # Set environment variables for configuration
 ENV UPDATE_ON_START=false \
-    MODELS_CONFIG_URL=https://huggingface.co/Patarapoom/model/resolve/main/models_config.json \
+    MODELS_CONFIG_URL= \
     SKIP_MODEL_DOWNLOAD=false \
     FORCE_MODEL_DOWNLOAD=false
 
