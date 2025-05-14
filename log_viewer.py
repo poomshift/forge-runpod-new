@@ -826,70 +826,94 @@ HTML_TEMPLATE = '''
 '''
 
 def get_installed_custom_nodes():
-    """Get a list of installed custom nodes"""
-    custom_nodes_dir = os.path.join('/workspace', 'ComfyUI', 'custom_nodes')
-    if not os.path.exists(custom_nodes_dir):
-        return []
+    """Get a list of installed custom nodes from start.sh"""
+    custom_nodes = []
     
-    nodes = []
-    for item in os.listdir(custom_nodes_dir):
-        item_path = os.path.join(custom_nodes_dir, item)
-        if os.path.isdir(item_path) and not item.startswith('.'):
-            # Try to get version info from git if available
-            version = "Installed"
-            git_dir = os.path.join(item_path, '.git')
-            if os.path.exists(git_dir):
-                try:
-                    result = subprocess.run(
-                        ['git', 'describe', '--tags', '--always'],
-                        cwd=item_path,
-                        capture_output=True,
-                        text=True,
-                        check=False
-                    )
-                    if result.returncode == 0 and result.stdout.strip():
-                        version = result.stdout.strip()
-                except Exception:
-                    pass
+    try:
+        # Check multiple possible locations for start.sh
+        start_sh_paths = ['/start.sh', './start.sh', '/workspace/start.sh', os.path.join(os.path.dirname(__file__), 'start.sh')]
+        start_sh_content = None
+        
+        for path in start_sh_paths:
+            if os.path.exists(path):
+                with open(path, 'r') as file:
+                    start_sh_content = file.read()
+                break
+        
+        if not start_sh_content:
+            print("Warning: start.sh not found in expected locations")
+            return []
             
-            nodes.append({
-                'name': item,
-                'path': item_path,
-                'version': version
+        # Extract git clone lines for custom nodes
+        import re
+        pattern = r'git clone --depth=1 (https://github.com/[^/]+/([^\.]+)\.git)'
+        matches = re.findall(pattern, start_sh_content)
+        
+        for match in matches:
+            repo_url, repo_name = match
+            # Extract the actual repository name from the URL
+            repo_name_clean = repo_url.split('/')[-1].replace('.git', '')
+            
+            custom_nodes.append({
+                'name': repo_name_clean,
+                'path': f"/workspace/ComfyUI/custom_nodes/{repo_name_clean}",
+                'version': "Installed",
+                'url': repo_url
             })
+    except Exception as e:
+        print(f"Error parsing custom nodes from start.sh: {e}")
     
     # Sort alphabetically
-    return sorted(nodes, key=lambda x: x['name'].lower())
+    return sorted(custom_nodes, key=lambda x: x['name'].lower())
 
 def get_installed_models():
-    """Get a list of installed models by category"""
-    models_dir = os.path.join('/workspace', 'ComfyUI', 'models')
-    if not os.path.exists(models_dir):
-        return {}
+    """Get a list of installed models from models_config.json"""
+    models = {}
     
-    result = {}
-    for category in os.listdir(models_dir):
-        category_path = os.path.join(models_dir, category)
-        if os.path.isdir(category_path):
-            model_files = []
-            for file in os.listdir(category_path):
-                file_path = os.path.join(category_path, file)
-                if os.path.isfile(file_path) and not file.startswith('.'):
-                    # Get file size in MB
-                    file_size = os.path.getsize(file_path) / (1024 * 1024)
+    try:
+        # Check multiple possible locations for models_config.json
+        config_paths = [
+            '/workspace/models_config.json', 
+            './models_config.json',
+            os.path.join(os.path.dirname(__file__), 'models_config.json')
+        ]
+        
+        model_config = None
+        for path in config_paths:
+            if os.path.exists(path):
+                import json
+                with open(path, 'r') as file:
+                    model_config = json.load(file)
+                break
+        
+        if not model_config:
+            print("Warning: models_config.json not found in expected locations")
+            return {}
+        
+        # Process each model category
+        for category, urls in model_config.items():
+            if urls:  # Only process non-empty categories
+                model_files = []
+                for url in urls:
+                    # Extract filename from URL
+                    filename = url.split('/')[-1]
+                    # Add model information
                     model_files.append({
-                        'name': file,
-                        'path': file_path,
-                        'size': f"{file_size:.1f} MB"
+                        'name': filename,
+                        'path': f"/workspace/ComfyUI/models/{category}/{filename}",
+                        'size': "From config",
+                        'url': url
                     })
-            
-            if model_files:
-                # Sort by name
-                model_files.sort(key=lambda x: x['name'].lower())
-                result[category] = model_files
+                
+                if model_files:
+                    # Sort by name
+                    model_files.sort(key=lambda x: x['name'].lower())
+                    models[category] = model_files
+    except Exception as e:
+        print(f"Error parsing models from models_config.json: {e}")
     
     # Sort categories alphabetically
-    return dict(sorted(result.items()))
+    return dict(sorted(models.items()))
 
 def get_current_logs():
     """Get the current logs from the buffer"""
