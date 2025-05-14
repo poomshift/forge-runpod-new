@@ -7,7 +7,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH="${PATH}:/root/.local/bin"
 
 # Install system dependencies
-RUN add-apt-repository ppa:deadsnakes/ppa \
+RUN apt-get update && apt-get install -y software-properties-common && \
+    add-apt-repository ppa:deadsnakes/ppa && \
     apt-get update && apt-get install -y --no-install-recommends \
     git \
     python3.12 \
