@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.4.0-devel-ubuntu24.04 as builder
+FROM nvidia/cuda:12.8.0-devel-ubuntu22.04 as builder
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -53,7 +53,7 @@ COPY download_models.py update.sh start.sh log_viewer.py /
 
 # Set environment variables for configuration
 ENV UPDATE_ON_START=false \
-    MODELS_CONFIG_URL= \
+    MODELS_CONFIG_URL= https://raw.githubusercontent.com/poomshift/comfyui-docker-new/refs/heads/main/models_config.json \
     SKIP_MODEL_DOWNLOAD=false \
     FORCE_MODEL_DOWNLOAD=false
 
