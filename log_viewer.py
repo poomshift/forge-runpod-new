@@ -97,6 +97,14 @@ HTML_TEMPLATE = '''
             min-height: 0;
         }
         
+        .sidebar {
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+        
         .logs-section {
             flex: 2;
             display: flex;
@@ -118,6 +126,7 @@ HTML_TEMPLATE = '''
             border-radius: 12px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             transition: background-color 0.3s;
+            position: relative;
         }
         
         .card h2 {
@@ -353,6 +362,85 @@ HTML_TEMPLATE = '''
             color: #991b1b;
         }
         
+        /* Styles for installed nodes and models */
+        .accordion-section {
+            margin-bottom: 10px;
+        }
+        
+        .accordion-header {
+            background: var(--card-bg);
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 500;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            user-select: none;
+        }
+        
+        .accordion-header:hover {
+            background: var(--bg-color);
+        }
+        
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        
+        .accordion-content.active {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .model-item {
+            margin: 10px 0 0 10px;
+            padding: 8px 12px;
+            background: var(--bg-color);
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        
+        .model-name {
+            font-weight: 500;
+            word-break: break-all;
+        }
+        
+        .model-size {
+            color: var(--text-secondary);
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        
+        .model-count-badge {
+            background: var(--primary-color);
+            color: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .refresh-button {
+            position: absolute;
+            top: 18px;
+            right: 20px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 3px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+        
+        .refresh-button:hover {
+            background: var(--bg-color);
+            color: var(--text-color);
+        }
+        
         .notification {
             margin-top: 10px;
             padding: 12px;
@@ -446,6 +534,7 @@ HTML_TEMPLATE = '''
         document.addEventListener('DOMContentLoaded', function() {
             initializeTheme();
             initializeWebSocket();
+            initializeAccordions();
             
             const logContainer = document.getElementById('log-container');
             
@@ -484,6 +573,34 @@ HTML_TEMPLATE = '''
                     // Check again in 10 seconds
                     setTimeout(checkComfyUIStatus, 10000);
                 });
+        }
+        
+        function toggleAccordion(element) {
+            const content = element.nextElementSibling;
+            content.classList.toggle('active');
+            
+            // Save state to localStorage
+            const id = element.getAttribute('data-section');
+            const isOpen = content.classList.contains('active');
+            localStorage.setItem(`accordion_${id}`, isOpen ? 'open' : 'closed');
+        }
+        
+        function initializeAccordions() {
+            const headers = document.querySelectorAll('.accordion-header');
+            headers.forEach(header => {
+                const id = header.getAttribute('data-section');
+                const content = header.nextElementSibling;
+                
+                // Restore state from localStorage
+                const savedState = localStorage.getItem(`accordion_${id}`);
+                if (savedState === 'open') {
+                    content.classList.add('active');
+                }
+                
+                header.addEventListener('click', () => {
+                    toggleAccordion(header);
+                });
+            });
         }
 
         function refreshLogs() {
@@ -589,6 +706,58 @@ HTML_TEMPLATE = '''
         </div>
         
         <div class="main-content">
+            <div class="sidebar">
+                <!-- Custom Nodes Section -->
+                <div class="card">
+                    <h2>Installed Custom Nodes</h2>
+                    <button onclick="window.location.reload()" class="refresh-button">Refresh</button>
+                    <div class="accordion-section">
+                        <div class="accordion-header" data-section="custom_nodes">
+                            <span>Custom Nodes</span>
+                            <span class="model-count-badge">{{ custom_nodes|length }}</span>
+                        </div>
+                        <div class="accordion-content">
+                            {% if custom_nodes %}
+                                {% for node in custom_nodes %}
+                                    <div class="model-item">
+                                        <div class="model-name">{{ node.name }}</div>
+                                        <div class="model-size">{{ node.version }}</div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="model-item">No custom nodes installed</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Models Section -->
+                <div class="card">
+                    <h2>Installed Models <span class="model-count-badge">{{ total_models }}</span></h2>
+                    <button onclick="window.location.reload()" class="refresh-button">Refresh</button>
+                    {% if models %}
+                        {% for category, items in models.items() %}
+                            <div class="accordion-section">
+                                <div class="accordion-header" data-section="{{ category }}">
+                                    <span>{{ category }}</span>
+                                    <span class="model-count-badge">{{ items|length }}</span>
+                                </div>
+                                <div class="accordion-content">
+                                    {% for model in items %}
+                                        <div class="model-item">
+                                            <div class="model-name">{{ model.name }}</div>
+                                            <div class="model-size">{{ model.size }}</div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="model-item">No models found</div>
+                    {% endif %}
+                </div>
+            </div>
+            
             <div class="logs-section">
                 <div id="log-container">{{ logs }}</div>
             </div>
@@ -656,8 +825,71 @@ HTML_TEMPLATE = '''
 </html>
 '''
 
-def tail_log_file():
-    """Continuously tail the log file and update the buffer"""
+def get_installed_custom_nodes():
+    """Get a list of installed custom nodes"""
+    custom_nodes_dir = os.path.join('/workspace', 'ComfyUI', 'custom_nodes')
+    if not os.path.exists(custom_nodes_dir):
+        return []
+    
+    nodes = []
+    for item in os.listdir(custom_nodes_dir):
+        item_path = os.path.join(custom_nodes_dir, item)
+        if os.path.isdir(item_path) and not item.startswith('.'):
+            # Try to get version info from git if available
+            version = "Installed"
+            git_dir = os.path.join(item_path, '.git')
+            if os.path.exists(git_dir):
+                try:
+                    result = subprocess.run(
+                        ['git', 'describe', '--tags', '--always'],
+                        cwd=item_path,
+                        capture_output=True,
+                        text=True,
+                        check=False
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        version = result.stdout.strip()
+                except Exception:
+                    pass
+            
+            nodes.append({
+                'name': item,
+                'path': item_path,
+                'version': version
+            })
+    
+    # Sort alphabetically
+    return sorted(nodes, key=lambda x: x['name'].lower())
+
+def get_installed_models():
+    """Get a list of installed models by category"""
+    models_dir = os.path.join('/workspace', 'ComfyUI', 'models')
+    if not os.path.exists(models_dir):
+        return {}
+    
+    result = {}
+    for category in os.listdir(models_dir):
+        category_path = os.path.join(models_dir, category)
+        if os.path.isdir(category_path):
+            model_files = []
+            for file in os.listdir(category_path):
+                file_path = os.path.join(category_path, file)
+                if os.path.isfile(file_path) and not file.startswith('.'):
+                    # Get file size in MB
+                    file_size = os.path.getsize(file_path) / (1024 * 1024)
+                    model_files.append({
+                        'name': file,
+                        'path': file_path,
+                        'size': f"{file_size:.1f} MB"
+                    })
+            
+            if model_files:
+                # Sort by name
+                model_files.sort(key=lambda x: x['name'].lower())
+                result[category] = model_files
+    
+    # Sort categories alphabetically
+    return dict(sorted(result.items()))
     log_file = os.path.join('logs', 'comfyui.log')
     
     if not os.path.exists(log_file):
@@ -730,8 +962,8 @@ def tail_log_file():
         print(f"Error tailing log file: {e}")
         time.sleep(5)
 
-def get_current_logs():
-    """Get the current logs with timestamp header"""
+def tail_log_file():
+    """Continuously tail the log file and update the buffer"""
     with log_lock:
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         header = f"Log Viewer - Last {len(log_buffer)} lines (as of {timestamp})\n"
@@ -836,6 +1068,16 @@ def download_from_huggingface(url, model_type="loras"):
     except Exception as e:
         return {"success": False, "message": f"Error during download: {str(e)}"}
 
+@app.route('/api/custom-nodes')
+def api_custom_nodes():
+    """API endpoint to get installed custom nodes"""
+    return jsonify(get_installed_custom_nodes())
+
+@app.route('/api/models')
+def api_models():
+    """API endpoint to get installed models"""
+    return jsonify(get_installed_models())
+
 @app.route('/logs')
 def get_logs():
     return jsonify({'logs': get_current_logs()})
@@ -914,6 +1156,13 @@ def download_huggingface():
 def index():
     logs = get_current_logs()
     
+    # Get installed custom nodes and models
+    custom_nodes = get_installed_custom_nodes()
+    models = get_installed_models()
+    
+    # Count total models
+    total_models = sum(len(models[category]) for category in models)
+    
     # Detect if we're running in RunPod by checking environment variables
     is_runpod = 'RUNPOD_POD_ID' in os.environ
     
@@ -934,7 +1183,10 @@ def index():
     response = make_response(render_template_string(HTML_TEMPLATE, 
                                                     logs=logs, 
                                                     proxy_url=proxy_url,
-                                                    is_runpod=is_runpod))
+                                                    is_runpod=is_runpod,
+                                                    custom_nodes=custom_nodes,
+                                                    models=models,
+                                                    total_models=total_models))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
