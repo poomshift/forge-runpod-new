@@ -59,117 +59,322 @@ HTML_TEMPLATE = '''
         body { 
             font-family: 'Inter', sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 0;
             background: var(--bg-color);
             color: var(--text-color);
-            height: 100vh;
-            box-sizing: border-box;
             transition: background-color 0.3s, color 0.3s;
         }
         
         .container {
-            max-width: 100%;
-            height: calc(100vh - 40px);
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            grid-template-rows: auto 1fr;
+            height: 100vh;
+            width: 100%;
         }
         
         .header {
-            padding: 16px;
+            grid-column: 1 / -1;
+            padding: 16px 24px;
             background: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-        
-        .header h1 {
-            margin: 0;
-            font-size: 24px;
-            color: var(--text-color);
-        }
-        
-        .main-content {
+            border-bottom: 1px solid var(--border-color);
             display: flex;
-            gap: 20px;
-            flex: 1;
-            min-height: 0;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .header-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin: 0;
+        }
+        
+        .header-controls {
+            display: flex;
+            gap: 16px;
+            align-items: center;
         }
         
         .sidebar {
-            width: 300px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            overflow-y: auto;
-        }
-        
-        .logs-section {
-            flex: 2;
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
-        }
-        
-        .downloader-section {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            overflow-y: auto;
-        }
-        
-        .card {
+            grid-row: 2;
+            grid-column: 1;
             background: var(--card-bg);
+            border-right: 1px solid var(--border-color);
             padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            transition: background-color 0.3s;
-            position: relative;
-        }
-        
-        .card h2 {
-            margin: 0 0 16px 0;
-            font-size: 18px;
-            color: var(--text-color);
-        }
-        
-        .controls {
-            margin: 16px 0;
+            overflow-y: auto;
             display: flex;
-            align-items: center;
-            gap: 16px;
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: 24px;
         }
         
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 12px;
+        .main-content {
+            grid-row: 2;
+            grid-column: 2;
+            display: grid;
+            grid-template-rows: 1fr auto;
+            overflow: hidden;
         }
         
-        .divider {
-            width: 1px;
-            height: 24px;
-            background: var(--border-color);
-            margin: 0 4px;
+        .logs-container {
+            padding: 20px;
+            overflow-y: auto;
+            background: var(--bg-color);
         }
         
         #log-container {
-            flex: 1;
-            padding: 20px;
             font-family: 'Monaco', 'Consolas', monospace;
             font-size: 14px;
             line-height: 1.5;
             white-space: pre-wrap;
-            overflow-y: auto;
-            background: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             color: var(--text-color);
-            transition: background-color 0.3s, color 0.3s;
-            min-height: 600px;
+            padding: 16px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow-x: auto;
+        }
+        
+        .download-panel {
+            padding: 20px;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .section {
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .section-content {
+            background: var(--bg-color);
+            border-radius: 8px;
+            padding: 12px;
+        }
+        
+        .list-item {
+            font-size: 14px;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-color);
+        }
+        
+        .list-item:last-child {
+            border-bottom: none;
+        }
+        
+        .model-category {
+            margin-bottom: 16px;
+        }
+        
+        .category-name {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: var(--text-color);
+        }
+        
+        .button {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 16px;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background-color 0.3s;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .button:hover {
+            background-color: #1d4ed8;
+        }
+        
+        .button.secondary {
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+        }
+        
+        .button.secondary:hover {
+            background-color: var(--bg-color);
+        }
+        
+        .button.success {
+            background-color: #10b981;
+        }
+        
+        .button.success:hover {
+            background-color: #059669;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--progress-bg);
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: var(--card-bg);
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: var(--primary-color);
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+        
+        .theme-switch {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .auto-scroll-control {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+            background: var(--card-bg);
+            padding: 8px 16px;
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            color: var(--text-color);
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-color);
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .form-group input[type="text"],
+        .form-group input[type="url"],
+        .form-group select {
+            width: 100%;
+            max-width: 400px;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-color);
+            color: var(--text-color);
+            font-size: 14px;
+        }
+        
+        .form-group .example-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+        
+        .download-tabs {
+            display: flex;
+            gap: 2px;
+            margin-bottom: 16px;
+        }
+        
+        .download-tab {
+            padding: 8px 16px;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .download-tab.active {
+            background: var(--card-bg);
+            border-bottom-color: transparent;
+            font-weight: 500;
+        }
+        
+        .download-content {
+            display: none;
+            padding: 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0 6px 6px 6px;
+        }
+        
+        .download-content.active {
+            display: block;
+        }
+        
+        .status-message {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .status-success {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .status-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .notification {
+            margin-top: 10px;
+            padding: 12px;
+            border-radius: 6px;
+            background: #f0f9ff;
+            color: #0369a1;
+            display: none;
         }
         
         /* Scrollbar styling */
@@ -190,278 +395,26 @@ HTML_TEMPLATE = '''
         ::-webkit-scrollbar-thumb:hover {
             background: var(--scrollbar-thumb-hover);
         }
-
-        /* Theme switch styles */
-        .theme-switch {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .theme-switch .icon {
-            font-size: 16px;
-            line-height: 1;
-            user-select: none;
-        }
-
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 44px;
-            height: 24px;
-        }
-
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: var(--progress-bg);
-            transition: .4s;
-            border-radius: 24px;
-        }
-
-        .toggle-slider:before {
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background-color: var(--card-bg);
-            transition: .4s;
-            border-radius: 50%;
-        }
-
-        input:checked + .toggle-slider {
-            background-color: var(--primary-color);
-        }
-
-        input:checked + .toggle-slider:before {
-            transform: translateX(20px);
-        }
-
-        .auto-scroll-control {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            z-index: 1000;
-            background: var(--card-bg);
-            padding: 8px 16px;
-            border-radius: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            color: var(--text-color);
-            transition: background-color 0.3s, color 0.3s;
-        }
-
-        .download-button {
-            display: inline-flex;
-            align-items: center;
-            padding: 8px 16px;
-            background: var(--primary-color);
-            color: white;
-            border-radius: 6px;
-            text-decoration: none;
-            font-weight: 500;
-            transition: background-color 0.3s;
-        }
         
-        .download-button:hover {
-            background-color: #1d4ed8;
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto 1fr;
+            }
+            
+            .sidebar {
+                grid-row: 2;
+                grid-column: 1;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                padding: 12px;
+            }
+            
+            .main-content {
+                grid-row: 3;
+                grid-column: 1;
+            }
         }
-        
-        .comfyui-button {
-            background-color: #10b981;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .comfyui-button:hover {
-            background-color: #059669;
-        }
-        
-        .comfyui-button.disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            pointer-events: none;
-        }
-        
-        .arrow {
-            font-size: 18px;
-        }
-
-        .download-form {
-            background: var(--card-bg);
-            padding: 20px;
-            border-radius: 12px;
-            margin-top: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: var(--text-color);
-            font-weight: 500;
-        }
-
-        .form-group input[type="text"],
-        .form-group input[type="url"],
-        .form-group select {
-            width: calc(100% - 24px);
-            max-width: 400px;
-            padding: 8px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background: var(--bg-color);
-            color: var(--text-color);
-            font-size: 14px;
-        }
-
-        .form-group .example-text {
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-top: 4px;
-        }
-
-        .form-group select {
-            cursor: pointer;
-        }
-
-        #downloadStatus {
-            margin-top: 12px;
-            padding: 12px;
-            border-radius: 6px;
-            display: none;
-        }
-
-        .status-success {
-            background: #dcfce7;
-            color: #166534;
-        }
-
-        .status-error {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-        
-        /* Styles for installed nodes and models */
-        .accordion-section {
-            margin-bottom: 10px;
-        }
-        
-        .accordion-header {
-            background: var(--card-bg);
-            padding: 10px 15px;
-            border-radius: 6px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-weight: 500;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            user-select: none;
-        }
-        
-        .accordion-header:hover {
-            background: var(--bg-color);
-        }
-        
-        .accordion-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out;
-        }
-        
-        .accordion-content.active {
-            max-height: 500px;
-            overflow-y: auto;
-        }
-        
-        .model-item {
-            margin: 10px 0 0 10px;
-            padding: 8px 12px;
-            background: var(--bg-color);
-            border-radius: 4px;
-            font-size: 13px;
-        }
-        
-        .model-name {
-            font-weight: 500;
-            word-break: break-all;
-        }
-        
-        .model-size {
-            color: var(--text-secondary);
-            font-size: 12px;
-            margin-top: 4px;
-        }
-        
-        .model-count-badge {
-            background: var(--primary-color);
-            color: white;
-            border-radius: 12px;
-            padding: 2px 8px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-        
-        .refresh-button {
-            position: absolute;
-            top: 18px;
-            right: 20px;
-            background: transparent;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            padding: 3px 8px;
-            font-size: 12px;
-            cursor: pointer;
-            color: var(--text-secondary);
-        }
-        
-        .refresh-button:hover {
-            background: var(--bg-color);
-            color: var(--text-color);
-        }
-        
-        .notification {
-            margin-top: 10px;
-            padding: 12px;
-            border-radius: 6px;
-            background: #f0f9ff;
-            color: #0369a1;
-            display: none;
-        }
-        
-        {% if is_runpod %}
-        /* Additional RunPod-specific styles */
-        .runpod-badge {
-            display: inline-flex;
-            align-items: center;
-            background: rgba(0, 0, 0, 0.1);
-            border-radius: 4px;
-            padding: 2px 6px;
-            font-size: 12px;
-            margin-left: 10px;
-        }
-        {% endif %}
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
@@ -531,10 +484,23 @@ HTML_TEMPLATE = '''
             }
         }
         
+        function switchDownloadTab(tabId) {
+            // Hide all content
+            const contents = document.querySelectorAll('.download-content');
+            contents.forEach(content => content.classList.remove('active'));
+            
+            // Deactivate all tabs
+            const tabs = document.querySelectorAll('.download-tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Activate selected tab and content
+            document.getElementById(tabId).classList.add('active');
+            document.getElementById(tabId + '-content').classList.add('active');
+        }
+        
         document.addEventListener('DOMContentLoaded', function() {
             initializeTheme();
             initializeWebSocket();
-            initializeAccordions();
             
             const logContainer = document.getElementById('log-container');
             
@@ -550,6 +516,9 @@ HTML_TEMPLATE = '''
             
             // Check if ComfyUI is running
             checkComfyUIStatus();
+            
+            // Initialize first download tab
+            switchDownloadTab('civitai-tab');
         });
 
         function isScrolledToBottom(element) {
@@ -574,34 +543,6 @@ HTML_TEMPLATE = '''
                     setTimeout(checkComfyUIStatus, 10000);
                 });
         }
-        
-        function toggleAccordion(element) {
-            const content = element.nextElementSibling;
-            content.classList.toggle('active');
-            
-            // Save state to localStorage
-            const id = element.getAttribute('data-section');
-            const isOpen = content.classList.contains('active');
-            localStorage.setItem(`accordion_${id}`, isOpen ? 'open' : 'closed');
-        }
-        
-        function initializeAccordions() {
-            const headers = document.querySelectorAll('.accordion-header');
-            headers.forEach(header => {
-                const id = header.getAttribute('data-section');
-                const content = header.nextElementSibling;
-                
-                // Restore state from localStorage
-                const savedState = localStorage.getItem(`accordion_${id}`);
-                if (savedState === 'open') {
-                    content.classList.add('active');
-                }
-                
-                header.addEventListener('click', () => {
-                    toggleAccordion(header);
-                });
-            });
-        }
 
         function refreshLogs() {
             fetch('/refresh_logs')
@@ -624,7 +565,7 @@ HTML_TEMPLATE = '''
             const modelType = document.getElementById('modelType').value;
             const statusDiv = document.getElementById('downloadStatus');
             
-            statusDiv.className = '';
+            statusDiv.className = 'status-message';
             statusDiv.style.display = 'block';
             statusDiv.textContent = 'Downloading...';
             
@@ -642,12 +583,12 @@ HTML_TEMPLATE = '''
             .then(response => response.json())
             .then(data => {
                 statusDiv.textContent = data.message;
-                statusDiv.className = data.success ? 'status-success' : 'status-error';
+                statusDiv.className = data.success ? 'status-message status-success' : 'status-message status-error';
             })
             .catch(error => {
                 statusDiv.textContent = 'Error: ' + error.message;
-                statusDiv.className = 'status-error';
-                });
+                statusDiv.className = 'status-message status-error';
+            });
         }
 
         function downloadFromHuggingFace() {
@@ -655,7 +596,7 @@ HTML_TEMPLATE = '''
             const modelType = document.getElementById('hfModelType').value;
             const statusDiv = document.getElementById('hfDownloadStatus');
             
-            statusDiv.className = '';
+            statusDiv.className = 'status-message';
             statusDiv.style.display = 'block';
             statusDiv.textContent = 'Downloading...';
             
@@ -672,99 +613,86 @@ HTML_TEMPLATE = '''
             .then(response => response.json())
             .then(data => {
                 statusDiv.textContent = data.message;
-                statusDiv.className = data.success ? 'status-success' : 'status-error';
+                statusDiv.className = data.success ? 'status-message status-success' : 'status-message status-error';
             })
             .catch(error => {
                 statusDiv.textContent = 'Error: ' + error.message;
-                statusDiv.className = 'status-error';
-                });
+                statusDiv.className = 'status-message status-error';
+            });
         }
     </script>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <div class="title-section">
-                <h1>ComfyUI Log Viewer</h1>
-            </div>
-            <div class="controls">
-                <div class="control-group">
-                    <a href="/download/outputs" class="download-button">Download Outputs</a>
-                    <a href="{{ proxy_url }}" target="_blank" id="comfyui-button" class="download-button comfyui-button">Open ComfyUI <span class="arrow">→</span></a>
-                    <button onclick="refreshLogs()" class="download-button">Refresh Logs</button>
-                    <div class="divider"></div>
-                    <div class="theme-switch">
-                        <span id="theme-icon" class="icon">☀️</span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
+        <header class="header">
+            <h1 class="header-title">ComfyUI Log Viewer</h1>
+            <div class="header-controls">
+                <a href="{{ proxy_url }}" target="_blank" id="comfyui-button" class="button success">Open ComfyUI</a>
+                <button onclick="refreshLogs()" class="button">Refresh Logs</button>
+                <div class="theme-switch">
+                    <span id="theme-icon" class="icon">☀️</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
+                        <span class="toggle-slider"></span>
+                    </label>
                 </div>
-                <div id="comfyui-status" class="notification">Checking ComfyUI status...</div>
             </div>
-        </div>
+        </header>
         
-        <div class="main-content">
-            <div class="sidebar">
-                <!-- Custom Nodes Section -->
-                <div class="card">
-                    <h2>Installed Custom Nodes</h2>
-                    <button onclick="window.location.reload()" class="refresh-button">Refresh</button>
-                    <div class="accordion-section">
-                        <div class="accordion-header" data-section="custom_nodes">
-                            <span>Custom Nodes</span>
-                            <span class="model-count-badge">{{ custom_nodes|length }}</span>
-                        </div>
-                        <div class="accordion-content">
-                            {% if custom_nodes %}
-                                {% for node in custom_nodes %}
-                                    <div class="model-item">
-                                        <div class="model-name">{{ node.name }}</div>
-                                        <div class="model-size">{{ node.version }}</div>
-                                    </div>
-                                {% endfor %}
-                            {% else %}
-                                <div class="model-item">No custom nodes installed</div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Models Section -->
-                <div class="card">
-                    <h2>Installed Models <span class="model-count-badge">{{ total_models }}</span></h2>
-                    <button onclick="window.location.reload()" class="refresh-button">Refresh</button>
-                    {% if models %}
-                        {% for category, items in models.items() %}
-                            <div class="accordion-section">
-                                <div class="accordion-header" data-section="{{ category }}">
-                                    <span>{{ category }}</span>
-                                    <span class="model-count-badge">{{ items|length }}</span>
-                                </div>
-                                <div class="accordion-content">
-                                    {% for model in items %}
-                                        <div class="model-item">
-                                            <div class="model-name">{{ model.name }}</div>
-                                            <div class="model-size">{{ model.size }}</div>
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                            </div>
+        <aside class="sidebar">
+            <!-- Custom Nodes Section - Simplified -->
+            <div class="section">
+                <h2 class="section-title">Installed Custom Nodes <span>({{ custom_nodes|length }})</span></h2>
+                <div class="section-content">
+                    {% if custom_nodes %}
+                        {% for node in custom_nodes %}
+                            <div class="list-item">{{ node.name }}</div>
                         {% endfor %}
                     {% else %}
-                        <div class="model-item">No models found</div>
+                        <div class="list-item">No custom nodes installed</div>
                     {% endif %}
                 </div>
             </div>
             
-            <div class="logs-section">
+            <!-- Models Section - Simplified -->
+            <div class="section">
+                <h2 class="section-title">Installed Models <span>({{ total_models }})</span></h2>
+                <div class="section-content">
+                    {% if models %}
+                        {% for category, items in models.items() %}
+                            {% if items %}
+                                <div class="model-category">
+                                    <div class="category-name">{{ category }} ({{ items|length }})</div>
+                                    {% for model in items %}
+                                        <div class="list-item">{{ model.name }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <div class="list-item">No models found</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="section">
+                <a href="/download/outputs" class="button">Download Outputs</a>
+                <div id="comfyui-status" class="notification">Checking ComfyUI status...</div>
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <div class="logs-container">
                 <div id="log-container">{{ logs }}</div>
             </div>
-
-            <div class="downloader-section">
-                <div class="card">
-                    <h2>Civitai Model Downloader</h2>
+            
+            <div class="download-panel">
+                <div class="download-tabs">
+                    <div id="civitai-tab" class="download-tab active" onclick="switchDownloadTab('civitai-tab')">Civitai Downloader</div>
+                    <div id="huggingface-tab" class="download-tab" onclick="switchDownloadTab('huggingface-tab')">Hugging Face Downloader</div>
+                </div>
+                
+                <div id="civitai-tab-content" class="download-content active">
                     <div class="form-group">
                         <label for="modelUrl">Model URL</label>
                         <input type="url" id="modelUrl" placeholder="Enter model URL" required>
@@ -785,12 +713,11 @@ HTML_TEMPLATE = '''
                             <option value="text_encoders">Text Encoder</option>
                         </select>
                     </div>
-                    <button onclick="downloadFromCivitai()" class="download-button">Download Model</button>
-                    <div id="downloadStatus"></div>
+                    <button onclick="downloadFromCivitai()" class="button">Download Model</button>
+                    <div id="downloadStatus" class="status-message"></div>
                 </div>
-
-                <div class="card">
-                    <h2>Hugging Face Downloader</h2>
+                
+                <div id="huggingface-tab-content" class="download-content">
                     <div class="form-group">
                         <label for="hfUrl">Model URL</label>
                         <input type="url" id="hfUrl" placeholder="Enter Hugging Face file URL" required>
@@ -807,11 +734,11 @@ HTML_TEMPLATE = '''
                             <option value="text_encoders">Text Encoder</option>
                         </select>
                     </div>
-                    <button onclick="downloadFromHuggingFace()" class="download-button">Download Model</button>
-                    <div id="hfDownloadStatus"></div>
+                    <button onclick="downloadFromHuggingFace()" class="button">Download Model</button>
+                    <div id="hfDownloadStatus" class="status-message"></div>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <div class="auto-scroll-control">
