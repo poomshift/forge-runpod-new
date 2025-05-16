@@ -136,6 +136,21 @@ HTML_TEMPLATE = '''
             overflow-y: auto;
             border: 1px solid var(--border);
             transition: opacity 0.1s ease;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+        .log-box .progress {
+            color: #10b981;
+            font-weight: 500;
+        }
+        .log-box .info {
+            color: #3b82f6;
+        }
+        .log-box .warning {
+            color: #f59e0b;
+        }
+        .log-box .error {
+            color: #ef4444;
         }
         .log-controls {
             display: flex;
@@ -350,6 +365,60 @@ HTML_TEMPLATE = '''
             }
         }
         
+        function processLogLine(line) {
+            // Replace ANSI color codes with HTML spans for styling
+            const colorMap = {
+                '0;30': 'color: #000000;', // Black
+                '0;31': 'color: #ef4444;', // Red
+                '0;32': 'color: #10b981;', // Green
+                '0;33': 'color: #f59e0b;', // Yellow
+                '0;34': 'color: #3b82f6;', // Blue
+                '0;35': 'color: #a855f7;', // Magenta
+                '0;36': 'color: #06b6d4;', // Cyan
+                '0;37': 'color: #9ca3af;', // White
+                '1;30': 'color: #4b5563; font-weight: bold;', // Bright Black
+                '1;31': 'color: #dc2626; font-weight: bold;', // Bright Red
+                '1;32': 'color: #059669; font-weight: bold;', // Bright Green
+                '1;33': 'color: #d97706; font-weight: bold;', // Bright Yellow
+                '1;34': 'color: #2563eb; font-weight: bold;', // Bright Blue
+                '1;35': 'color: #7c3aed; font-weight: bold;', // Bright Magenta
+                '1;36': 'color: #0891b2; font-weight: bold;', // Bright Cyan
+                '1;37': 'color: #f3f4f6; font-weight: bold;', // Bright White
+            };
+            
+            // Function to escape HTML special characters
+            function escapeHtml(text) {
+                return text
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+            
+            // Escape HTML in the line
+            let processedLine = escapeHtml(line);
+            
+            // Process progress indicators (lines with percentages)
+            if (processedLine.match(/\d+%/) && processedLine.includes('|')) {
+                return `<span class="progress">${processedLine}</span>`;
+            }
+            
+            // Process INFO/WARNING/ERROR tags
+            if (processedLine.includes('INFO')) {
+                return `<span class="info">${processedLine}</span>`;
+            }
+            if (processedLine.includes('WARNING') || processedLine.includes('UserWarning')) {
+                return `<span class="warning">${processedLine}</span>`;
+            }
+            if (processedLine.includes('ERROR')) {
+                return `<span class="error">${processedLine}</span>`;
+            }
+            
+            // Return the processed line
+            return processedLine;
+        }
+        
         function updateLogBoxSmoothly(logs) {
             if (!logs || isUpdating) return;
             
@@ -371,7 +440,12 @@ HTML_TEMPLATE = '''
                     
                     // Use timeout to allow the opacity transition to happen
                     setTimeout(() => {
-                        logBox.innerHTML = logs;
+                        // Process log lines with HTML formatting
+                        const processedLogs = logs.split('\n').map(line => {
+                            return processLogLine(line);
+                        }).join('\n');
+                        
+                        logBox.innerHTML = processedLogs;
                         logBox.style.opacity = '1';
                         
                         // Maintain scroll position
@@ -866,7 +940,7 @@ def get_current_logs():
         header = f"Log Viewer - Last {len(log_buffer)} lines (as of {timestamp})\n"
         header += "=" * 80 + "\n\n"
         
-        # Return log buffer with duplicate consecutive lines removed
+        # Return log buffer with proper formatting
         if log_buffer:
             return header + '\n'.join(log_buffer)
         else:
