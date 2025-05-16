@@ -868,13 +868,7 @@ def get_current_logs():
         
         # Return log buffer with duplicate consecutive lines removed
         if log_buffer:
-            filtered_logs = []
-            prev_line = None
-            for line in log_buffer:
-                if line != prev_line:
-                    filtered_logs.append(line)
-                prev_line = line
-            return header + '\n'.join(filtered_logs)
+            return header + '\n'.join(log_buffer)
         else:
             return header + "No logs yet."
 
@@ -924,15 +918,24 @@ def tail_log_file():
                     # Seek to last position
                     file.seek(current_position)
                     
-                    # Read new lines
-                    new_lines = file.readlines()
-                    if new_lines:
+                    # Read raw content to handle progress bars with \r
+                    raw_content = file.read(file_size - current_position)
+                    if raw_content:
                         current_position = file.tell()
-                        print(f"Read {len(new_lines)} new lines, position now at {current_position}")
-                        for line in new_lines:
+                        
+                        # Split by both newlines and carriage returns to capture progress updates
+                        lines = []
+                        for part in raw_content.split('\n'):
+                            # Handle carriage returns which are used for progress bars
+                            cr_parts = part.split('\r')
+                            # Add all parts except empty ones
+                            lines.extend([p for p in cr_parts if p.strip()])
+                        
+                        print(f"Read {len(lines)} new content parts, position now at {current_position}")
+                        for line in lines:
                             yield line
                     else:
-                        # No new lines, sleep before checking again
+                        # No new content, sleep before checking again
                         time.sleep(0.1)
             except Exception as e:
                 print(f"Error following log file: {e}")
@@ -942,23 +945,32 @@ def tail_log_file():
         # Load initial content
         print("Loading initial log content...")
         with open(log_file, 'r', encoding='utf-8', errors='replace') as file:
-            content = file.readlines()
+            content = file.read()
+            
+            # Process content to handle both newlines and carriage returns
             processed_content = []
+            for part in content.split('\n'):
+                # Handle carriage returns which are used for progress bars
+                cr_parts = part.split('\r')
+                # Add all non-empty parts
+                processed_content.extend([p.strip() for p in cr_parts if p.strip()])
             
             # Keep only the last 500 lines and filter duplicates
-            content = content[-500:] if len(content) > 500 else content
+            processed_content = processed_content[-500:] if len(processed_content) > 500 else processed_content
+            
+            # Remove consecutive duplicates
+            filtered_content = []
             prev_line = None
-            for line in content:
-                stripped_line = line.strip()
-                if stripped_line and stripped_line != prev_line:
-                    processed_content.append(stripped_line)
-                prev_line = stripped_line
+            for line in processed_content:
+                if line != prev_line:
+                    filtered_content.append(line)
+                prev_line = line
             
             with log_lock:
                 log_buffer.clear()
-                log_buffer.extend(processed_content)
+                log_buffer.extend(filtered_content)
             
-            print(f"Loaded {len(processed_content)} initial log lines")
+            print(f"Loaded {len(filtered_content)} initial log lines")
             # Emit initial logs
             socketio.emit('logs', {'logs': get_current_logs()})
         
@@ -967,14 +979,16 @@ def tail_log_file():
         prev_line = None
         for line in follow(log_file):
             stripped_line = line.strip()
-            if stripped_line and stripped_line != prev_line:  # Only process non-empty lines and not duplicates
+            if stripped_line:  # Only process non-empty lines
                 with log_lock:
-                    log_buffer.append(stripped_line)
-                    if len(log_buffer) > 500:
-                        log_buffer.pop(0)
-                # Emit new log line via WebSocket
-                socketio.emit('new_log_line', {'line': stripped_line})
-            prev_line = stripped_line
+                    # Only add if different from the last line (avoid duplicates from progress updates)
+                    if stripped_line != prev_line:
+                        log_buffer.append(stripped_line)
+                        if len(log_buffer) > 500:
+                            log_buffer.pop(0)
+                        # Emit new log line via WebSocket
+                        socketio.emit('new_log_line', {'line': stripped_line})
+                prev_line = stripped_line
     except Exception as e:
         print(f"Error tailing log file: {e}")
         time.sleep(5)
