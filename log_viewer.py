@@ -137,19 +137,75 @@ HTML_TEMPLATE = '''
             border: 1px solid var(--border);
             transition: opacity 0.1s ease;
         }
+        .log-controls {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+        .auto-scroll-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 36px;
+            height: 20px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .3s;
+            border-radius: 20px;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        input:checked + .toggle-slider {
+            background-color: var(--primary);
+        }
+        input:checked + .toggle-slider:before {
+            transform: translateX(16px);
+        }
         .downloaders {
             display: flex;
-            gap: 24px;
-            flex-wrap: wrap;
-        }
-        .downloader {
-            flex: 1 1 320px;
+            flex-direction: column;
             background: #f3f4f6;
             border-radius: var(--radius);
-            padding: 18px 16px 12px 16px;
             box-shadow: var(--shadow);
             border: 1px solid var(--border);
-            min-width: 280px;
+            overflow: hidden;
+        }
+        .downloader {
+            flex: 1;
+            padding: 18px 16px 12px 16px;
+            display: none;
+        }
+        .downloader.active {
+            display: block;
         }
         .downloader label {
             font-size: 0.97rem;
@@ -168,6 +224,29 @@ HTML_TEMPLATE = '''
         }
         .downloader .button {
             width: 100%;
+        }
+        .tabs {
+            display: flex;
+            background: #e5e7eb;
+            border-bottom: 1px solid var(--border);
+        }
+        .tab {
+            padding: 12px 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-size: 0.95rem;
+            text-align: center;
+            flex: 1;
+            border-right: 1px solid var(--border);
+        }
+        .tab:last-child {
+            border-right: none;
+        }
+        .tab.active {
+            background: #f3f4f6;
+            border-bottom: 2px solid var(--primary);
+            margin-bottom: -1px;
         }
         .status-message {
             margin-top: 10px;
@@ -249,6 +328,8 @@ HTML_TEMPLATE = '''
         let lastLogHash = '';
         let logUpdateCounter = 0;
         let isUpdating = false;
+        let autoScroll = true;
+        let userScrolled = false;
         
         function initializeWebSocket() {
             try {
@@ -281,7 +362,7 @@ HTML_TEMPLATE = '''
                 isUpdating = true;
                 
                 // Save current scroll position and check if scrolled to bottom
-                const wasAtBottom = isScrolledToBottom(logBox);
+                const wasAtBottom = isScrolledToBottom(logBox) || (autoScroll && !userScrolled);
                 const scrollPos = logBox.scrollTop;
                 
                 // Update content with minimal flickering
@@ -314,6 +395,21 @@ HTML_TEMPLATE = '''
         
         function scrollToBottom(element) {
             element.scrollTop = element.scrollHeight;
+        }
+        
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            userScrolled = false;
+            
+            // If turning on auto-scroll, immediately scroll to bottom
+            if (autoScroll) {
+                const logBox = document.getElementById('log-box');
+                scrollToBottom(logBox);
+            }
+            
+            // Save preference
+            localStorage.setItem('autoScroll', autoScroll ? 'true' : 'false');
+            console.log('Auto-scroll ' + (autoScroll ? 'enabled' : 'disabled'));
         }
         
         function forceRefreshLogs() {
@@ -450,6 +546,22 @@ HTML_TEMPLATE = '''
             });
         }
         
+        function switchTab(tabName) {
+            // Hide all downloaders
+            document.querySelectorAll('.downloader').forEach(downloader => {
+                downloader.classList.remove('active');
+            });
+            
+            // Deactivate all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Activate the selected tab and downloader
+            document.getElementById(tabName + '-tab').classList.add('active');
+            document.getElementById(tabName + '-downloader').classList.add('active');
+        }
+        
         function toggleCollapsible(element) {
             element.classList.toggle('open');
         }
@@ -474,6 +586,30 @@ HTML_TEMPLATE = '''
                 header.addEventListener('click', function() {
                     toggleCollapsible(this.parentElement);
                 });
+            });
+            
+            // Initialize tabs - start with Civitai tab active
+            switchTab('civitai');
+            
+            // Set up auto-scroll toggle from saved preference
+            const savedAutoScroll = localStorage.getItem('autoScroll');
+            if (savedAutoScroll !== null) {
+                autoScroll = savedAutoScroll === 'true';
+                document.getElementById('auto-scroll-toggle').checked = autoScroll;
+            }
+            
+            // Add scroll listener to detect when user manually scrolls
+            const logBox = document.getElementById('log-box');
+            logBox.addEventListener('scroll', function() {
+                // Only mark as user scrolled if auto-scroll is on and they scroll up
+                if (autoScroll && !isScrolledToBottom(logBox)) {
+                    userScrolled = true;
+                }
+                
+                // If they scroll to bottom, reset userScrolled
+                if (isScrolledToBottom(logBox)) {
+                    userScrolled = false;
+                }
             });
         });
     </script>
@@ -536,13 +672,28 @@ HTML_TEMPLATE = '''
         
         <div class="section">
             <div class="section-title">Logs</div>
+            <div class="log-controls">
+                <div class="auto-scroll-toggle">
+                    <span>Auto-scroll</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="auto-scroll-toggle" checked onchange="toggleAutoScroll()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
             <div id="log-box" class="log-box">{{ logs }}</div>
         </div>
         
         <div class="section">
             <div class="section-title">Model Downloaders</div>
             <div class="downloaders">
-                <div class="downloader">
+                <div class="tabs">
+                    <div id="civitai-tab" class="tab" onclick="switchTab('civitai')">Civitai</div>
+                    <div id="huggingface-tab" class="tab" onclick="switchTab('huggingface')">Hugging Face</div>
+                    <div id="googledrive-tab" class="tab" onclick="switchTab('googledrive')">Google Drive</div>
+                </div>
+                
+                <div id="civitai-downloader" class="downloader">
                     <div style="font-weight:600;margin-bottom:8px;">Civitai Downloader</div>
                     <label for="modelUrl">Model URL</label>
                     <input type="url" id="modelUrl" placeholder="https://civitai.com/api/download/models/1399707" required>
@@ -565,7 +716,8 @@ HTML_TEMPLATE = '''
                     <button onclick="downloadFromCivitai()" class="button">Download Model</button>
                     <div id="downloadStatus" class="status-message"></div>
                 </div>
-                <div class="downloader">
+                
+                <div id="huggingface-downloader" class="downloader">
                     <div style="font-weight:600;margin-bottom:8px;">Hugging Face Downloader</div>
                     <label for="hfUrl">Model URL</label>
                     <input type="url" id="hfUrl" placeholder="https://huggingface.co/[user]/[repo]/resolve/main/model.safetensors" required>
@@ -586,7 +738,8 @@ HTML_TEMPLATE = '''
                     <button onclick="downloadFromHuggingFace()" class="button">Download Model</button>
                     <div id="hfDownloadStatus" class="status-message"></div>
                 </div>
-                <div class="downloader">
+                
+                <div id="googledrive-downloader" class="downloader">
                     <div style="font-weight:600;margin-bottom:8px;">Google Drive Downloader</div>
                     <label for="gdUrl">Google Drive URL or ID</label>
                     <input type="text" id="gdUrl" placeholder="https://drive.google.com/file/d/FILEID/view or just FILEID" required>
