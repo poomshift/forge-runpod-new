@@ -165,7 +165,12 @@ else
 fi
 
 # Create dirs and download ComfyUI if it doesn't exist
-if [ ! -d "/workspace/ComfyUI" ]; then
+if [ ! -e "/workspace/ComfyUI/main.py" ]; then
+    echo "ComfyUI not found or incomplete, installing..." | tee -a /workspace/logs/comfyui.log
+    
+    # Remove incomplete directory if it exists
+    rm -rf /workspace/ComfyUI
+    
     # Create workspace and log directories
     mkdir -p /workspace/logs
     
@@ -220,7 +225,13 @@ if [ ! -d "/workspace/ComfyUI" ]; then
     
     cd /workspace
 else
-    echo "ComfyUI already exists, skipping clone and setup..."
+    echo "ComfyUI already exists, skipping clone and setup..." | tee -a /workspace/logs/comfyui.log
+    # Create ComfyUI model directories if they don't exist yet
+    echo "Ensuring ComfyUI model directories exist..." | tee -a /workspace/logs/comfyui.log
+    mkdir -p /workspace/ComfyUI/models/{checkpoints,vae,unet,diffusion_models,text_encoders,loras,upscale_models,clip,controlnet,clip_vision,ipadapter,style_models}
+    mkdir -p /workspace/ComfyUI/custom_nodes
+    mkdir -p /workspace/ComfyUI/input
+    mkdir -p /workspace/ComfyUI/output
 fi
 
 # Create log file if it doesn't exist

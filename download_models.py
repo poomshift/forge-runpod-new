@@ -117,10 +117,23 @@ def main():
         logger.info("Model download skipped due to SKIP_MODEL_DOWNLOAD=true")
         return
     
-    # Check if ComfyUI is ready by verifying its directory structure
-    if not os.path.exists('/workspace/ComfyUI/models/checkpoints'):
-        logger.info("ComfyUI models directory not ready yet. Skipping model downloads for now.")
+    # Check if ComfyUI is fully set up
+    comfyui_path = '/workspace/ComfyUI'
+    if not os.path.exists(os.path.join(comfyui_path, 'main.py')):
+        logger.info("ComfyUI main.py not found. Skipping model downloads until ComfyUI is installed.")
         return
+        
+    # Check if key model directories exist
+    model_dirs = [
+        os.path.join(comfyui_path, 'models'),
+        os.path.join(comfyui_path, 'models/checkpoints'),
+        os.path.join(comfyui_path, 'models/loras')
+    ]
+    
+    for dir_path in model_dirs:
+        if not os.path.exists(dir_path):
+            logger.info(f"Model directory {dir_path} not found. Skipping model downloads.")
+            return
         
     # Base path for ComfyUI
     base_path = Path('/workspace/ComfyUI')
