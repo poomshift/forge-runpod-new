@@ -172,54 +172,96 @@ HTML_TEMPLATE = '''
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
         let socket;
-        let lastLogs = '';
+        let lastLogHash = '';
+        let logUpdateCounter = 0;
+        
         function initializeWebSocket() {
-            socket = io();
-            socket.on('new_log_line', function(data) {
-                appendLogLine(data.line);
-            });
-            socket.on('logs', function(data) {
-                updateLogBox(data.logs);
-            });
+            try {
+                socket = io();
+                socket.on('connect', function() {
+                    console.log('WebSocket connected');
+                });
+                socket.on('new_log_line', function(data) {
+                    console.log('New log line received via WebSocket');
+                    forceRefreshLogs();
+                });
+                socket.on('logs', function(data) {
+                    console.log('Full logs received via WebSocket');
+                    forceUpdateLogBox(data.logs);
+                });
+            } catch (e) {
+                console.error('WebSocket initialization failed:', e);
+            }
         }
-        function appendLogLine(line) {
+        
+        function forceUpdateLogBox(logs) {
+            if (!logs) return;
+            
             const logBox = document.getElementById('log-box');
-            logBox.innerHTML += line + '\n';
-            scrollToBottom();
-        }
-        function updateLogBox(logs) {
-            if (logs !== lastLogs) {
-                document.getElementById('log-box').innerHTML = logs;
-                lastLogs = logs;
+            logBox.innerHTML = logs;
+            
+            // Generate simple hash of the log content to check for changes
+            const hash = String(logs).length + '-' + String(logs).substr(0, 50);
+            if (hash !== lastLogHash) {
+                console.log('Log content updated (' + (++logUpdateCounter) + ')');
+                lastLogHash = hash;
                 scrollToBottom();
             }
         }
+        
         function scrollToBottom() {
             const logBox = document.getElementById('log-box');
             logBox.scrollTop = logBox.scrollHeight;
         }
-        function refreshLogs() {
-            fetch('/refresh_logs')
-                .then(response => response.json())
-                .then(data => {
-                    pollLogs(); // Immediately fetch updated logs after refresh
-                })
-                .catch(error => {
-                    console.error('Error refreshing logs:', error);
-                });
+        
+        function forceRefreshLogs() {
+            console.log('Forcing log refresh...');
+            fetch('/refresh_logs', { 
+                method: 'GET',
+                cache: 'no-cache'
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Refresh complete, fetching latest logs');
+                fetchLatestLogs();
+            })
+            .catch(error => {
+                console.error('Error refreshing logs:', error);
+                // Try to fetch logs anyway
+                fetchLatestLogs();
+            });
         }
-        function pollLogs() {
-            fetch('/logs')
-                .then(response => response.json())
-                .then(data => {
-                    if (data && data.logs !== undefined) {
-                        updateLogBox(data.logs);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error polling logs:', error);
-                });
+        
+        function fetchLatestLogs() {
+            console.log('Fetching latest logs...');
+            fetch('/logs', { 
+                method: 'GET',
+                cache: 'no-cache',
+                headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.logs) {
+                    console.log('Latest logs received, updating display');
+                    forceUpdateLogBox(data.logs);
+                } else {
+                    console.warn('No logs data in response');
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching logs:', error);
+            });
         }
+        
+        // Auto-poll for logs every 3 seconds
+        function startAutoPoll() {
+            console.log('Starting auto polling');
+            setInterval(fetchLatestLogs, 3000);
+        }
+        
         function downloadFromCivitai() {
             const url = document.getElementById('modelUrl').value;
             const apiKey = document.getElementById('apiKey').value;
@@ -266,20 +308,19 @@ HTML_TEMPLATE = '''
             });
         }
         document.addEventListener('DOMContentLoaded', function() {
-            try {
-                initializeWebSocket();
-            } catch (e) {
-                console.warn('WebSocket initialization failed, falling back to polling only');
-            }
+            console.log('Page loaded, initializing systems');
             
-            // Initialize logs
-            pollLogs();
+            // Initialize WebSocket and fallback polling
+            initializeWebSocket();
             
-            // Set up recurring polling
-            const pollInterval = setInterval(pollLogs, 2000);
+            // Immediately fetch logs on page load
+            fetchLatestLogs();
             
-            // Make sure logs are properly shown
-            scrollToBottom();
+            // Start auto-polling
+            startAutoPoll();
+            
+            // Make the Refresh Logs button call our enhanced function
+            document.getElementById('refresh-logs-btn').addEventListener('click', forceRefreshLogs);
         });
     </script>
 </head>
@@ -289,7 +330,7 @@ HTML_TEMPLATE = '''
             <div class="title">Alchemist's ComfyUI</div>
             <div class="controls">
                 <a href="{{ proxy_url }}" target="_blank" class="button success">Open ComfyUI</a>
-                <button onclick="refreshLogs()" class="button">Refresh Logs</button>
+                <button id="refresh-logs-btn" class="button">Refresh Logs</button>
                 <a href="/download/outputs" class="button">Download Outputs</a>
             </div>
         </header>
