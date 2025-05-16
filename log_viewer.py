@@ -114,6 +114,7 @@ HTML_TEMPLATE = '''
             max-height: 350px;
             overflow-y: auto;
             border: 1px solid var(--border);
+            transition: opacity 0.1s ease;
         }
         .downloaders {
             display: flex;
@@ -174,6 +175,7 @@ HTML_TEMPLATE = '''
         let socket;
         let lastLogHash = '';
         let logUpdateCounter = 0;
+        let isUpdating = false;
         
         function initializeWebSocket() {
             try {
@@ -183,39 +185,71 @@ HTML_TEMPLATE = '''
                 });
                 socket.on('new_log_line', function(data) {
                     console.log('New log line received via WebSocket');
-                    forceRefreshLogs();
+                    fetchLatestLogs(false);
                 });
                 socket.on('logs', function(data) {
                     console.log('Full logs received via WebSocket');
-                    forceUpdateLogBox(data.logs);
+                    updateLogBoxSmoothly(data.logs);
                 });
             } catch (e) {
                 console.error('WebSocket initialization failed:', e);
             }
         }
         
-        function forceUpdateLogBox(logs) {
-            if (!logs) return;
+        function updateLogBoxSmoothly(logs) {
+            if (!logs || isUpdating) return;
             
             const logBox = document.getElementById('log-box');
-            logBox.innerHTML = logs;
             
             // Generate simple hash of the log content to check for changes
             const hash = String(logs).length + '-' + String(logs).substr(0, 50);
             if (hash !== lastLogHash) {
-                console.log('Log content updated (' + (++logUpdateCounter) + ')');
-                lastLogHash = hash;
-                scrollToBottom();
+                // Only update if content actually changed
+                isUpdating = true;
+                
+                // Save current scroll position and check if scrolled to bottom
+                const wasAtBottom = isScrolledToBottom(logBox);
+                const scrollPos = logBox.scrollTop;
+                
+                // Update content with minimal flickering
+                requestAnimationFrame(() => {
+                    logBox.style.opacity = '0.7';
+                    
+                    // Use timeout to allow the opacity transition to happen
+                    setTimeout(() => {
+                        logBox.innerHTML = logs;
+                        logBox.style.opacity = '1';
+                        
+                        // Maintain scroll position
+                        if (wasAtBottom) {
+                            scrollToBottom(logBox);
+                        } else {
+                            logBox.scrollTop = scrollPos;
+                        }
+                        
+                        console.log('Log content updated (' + (++logUpdateCounter) + ')');
+                        lastLogHash = hash;
+                        isUpdating = false;
+                    }, 50);
+                });
             }
         }
         
-        function scrollToBottom() {
-            const logBox = document.getElementById('log-box');
-            logBox.scrollTop = logBox.scrollHeight;
+        function isScrolledToBottom(element) {
+            return Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) < 1;
+        }
+        
+        function scrollToBottom(element) {
+            element.scrollTop = element.scrollHeight;
         }
         
         function forceRefreshLogs() {
             console.log('Forcing log refresh...');
+            const logBox = document.getElementById('log-box');
+            
+            // Visual indication that refresh is happening
+            logBox.style.opacity = '0.5';
+            
             fetch('/refresh_logs', { 
                 method: 'GET',
                 cache: 'no-cache'
@@ -223,16 +257,18 @@ HTML_TEMPLATE = '''
             .then(response => response.json())
             .then(data => {
                 console.log('Refresh complete, fetching latest logs');
-                fetchLatestLogs();
+                fetchLatestLogs(true);
             })
             .catch(error => {
                 console.error('Error refreshing logs:', error);
-                // Try to fetch logs anyway
-                fetchLatestLogs();
+                logBox.style.opacity = '1';
+                fetchLatestLogs(true);
             });
         }
         
-        function fetchLatestLogs() {
+        function fetchLatestLogs(isManualRefresh) {
+            if (isUpdating && !isManualRefresh) return;
+            
             console.log('Fetching latest logs...');
             fetch('/logs', { 
                 method: 'GET',
@@ -246,20 +282,22 @@ HTML_TEMPLATE = '''
             .then(data => {
                 if (data && data.logs) {
                     console.log('Latest logs received, updating display');
-                    forceUpdateLogBox(data.logs);
+                    updateLogBoxSmoothly(data.logs);
                 } else {
                     console.warn('No logs data in response');
+                    document.getElementById('log-box').style.opacity = '1';
                 }
             })
             .catch(error => {
                 console.error('Error fetching logs:', error);
+                document.getElementById('log-box').style.opacity = '1';
             });
         }
         
         // Auto-poll for logs every 3 seconds
         function startAutoPoll() {
             console.log('Starting auto polling');
-            setInterval(fetchLatestLogs, 3000);
+            setInterval(() => fetchLatestLogs(false), 3000);
         }
         
         function downloadFromCivitai() {
@@ -797,3 +835,4 @@ if __name__ == '__main__':
                  port=8189, 
                  debug=False,
                  allow_unsafe_werkzeug=True)
+
