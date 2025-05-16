@@ -80,6 +80,7 @@ HTML_TEMPLATE = '''
             font-weight: 500;
             cursor: pointer;
             transition: background 0.2s;
+            text-decoration: none;
         }
         .button.secondary {
             background: #f3f4f6;
@@ -200,8 +201,12 @@ HTML_TEMPLATE = '''
         function refreshLogs() {
             fetch('/refresh_logs')
                 .then(response => response.json())
-                .then(data => {})
-                .catch(error => {});
+                .then(data => {
+                    pollLogs(); // Immediately fetch updated logs after refresh
+                })
+                .catch(error => {
+                    console.error('Error refreshing logs:', error);
+                });
         }
         function pollLogs() {
             fetch('/logs')
@@ -211,7 +216,9 @@ HTML_TEMPLATE = '''
                         updateLogBox(data.logs);
                     }
                 })
-                .catch(error => {});
+                .catch(error => {
+                    console.error('Error polling logs:', error);
+                });
         }
         function downloadFromCivitai() {
             const url = document.getElementById('modelUrl').value;
@@ -259,9 +266,20 @@ HTML_TEMPLATE = '''
             });
         }
         document.addEventListener('DOMContentLoaded', function() {
-            initializeWebSocket();
+            try {
+                initializeWebSocket();
+            } catch (e) {
+                console.warn('WebSocket initialization failed, falling back to polling only');
+            }
+            
+            // Initialize logs
+            pollLogs();
+            
+            // Set up recurring polling
+            const pollInterval = setInterval(pollLogs, 2000);
+            
+            // Make sure logs are properly shown
             scrollToBottom();
-            setInterval(pollLogs, 2000);
         });
     </script>
 </head>
@@ -272,7 +290,7 @@ HTML_TEMPLATE = '''
             <div class="controls">
                 <a href="{{ proxy_url }}" target="_blank" class="button success">Open ComfyUI</a>
                 <button onclick="refreshLogs()" class="button">Refresh Logs</button>
-                <a href="/download/outputs" class="button secondary">Download Outputs</a>
+                <a href="/download/outputs" class="button">Download Outputs</a>
             </div>
         </header>
         <div class="section">
@@ -290,12 +308,17 @@ HTML_TEMPLATE = '''
                     <input type="text" id="apiKey" placeholder="Your Civitai API key">
                     <label for="modelType">Model Type</label>
                     <select id="modelType">
-                        <option value="diffusion_models">Diffusion Model</option>
-                        <option value="loras">LORA</option>
-                        <option value="checkpoints">Checkpoint</option>
-                        <option value="vae">VAE</option>
-                        <option value="unet">UNet</option>
-                        <option value="text_encoders">Text Encoder</option>
+                        <option value="models/checkpoints">Checkpoints</option>
+                        <option value="models/vae">VAE</option>
+                        <option value="models/unet">UNet</option>
+                        <option value="models/diffusion_models">Diffusion Models</option>
+                        <option value="models/text_encoders">Text Encoders</option>
+                        <option value="models/loras">LORAs</option>
+                        <option value="models/upscale_models">Upscale Models</option>
+                        <option value="models/clip">CLIP</option>
+                        <option value="models/controlnet">ControlNet</option>
+                        <option value="models/clip_vision">CLIP Vision</option>
+                        <option value="models/ipadapter">IPAdapter</option>
                     </select>
                     <button onclick="downloadFromCivitai()" class="button">Download Model</button>
                     <div id="downloadStatus" class="status-message"></div>
@@ -306,12 +329,17 @@ HTML_TEMPLATE = '''
                     <input type="url" id="hfUrl" placeholder="https://huggingface.co/[user]/[repo]/resolve/main/model.safetensors" required>
                     <label for="hfModelType">Model Type</label>
                     <select id="hfModelType">
-                        <option value="diffusion_models">Diffusion Model</option>
-                        <option value="loras">LORA</option>
-                        <option value="checkpoints">Checkpoint</option>
-                        <option value="vae">VAE</option>
-                        <option value="unet">UNet</option>
-                        <option value="text_encoders">Text Encoder</option>
+                        <option value="models/checkpoints">Checkpoints</option>
+                        <option value="models/vae">VAE</option>
+                        <option value="models/unet">UNet</option>
+                        <option value="models/diffusion_models">Diffusion Models</option>
+                        <option value="models/text_encoders">Text Encoders</option>
+                        <option value="models/loras">LORAs</option>
+                        <option value="models/upscale_models">Upscale Models</option>
+                        <option value="models/clip">CLIP</option>
+                        <option value="models/controlnet">ControlNet</option>
+                        <option value="models/clip_vision">CLIP Vision</option>
+                        <option value="models/ipadapter">IPAdapter</option>
                     </select>
                     <button onclick="downloadFromHuggingFace()" class="button">Download Model</button>
                     <div id="hfDownloadStatus" class="status-message"></div>
