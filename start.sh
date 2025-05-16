@@ -77,9 +77,102 @@ cd /
 # Install uv for faster package installation
 install_uv
 
-# Check if ComfyUI is already cloned
-if [ ! -d "/workspace/ComfyUI/.git" ]; then
-    echo "Cloning ComfyUI repository..." | tee -a /workspace/logs/comfyui.log
+# Function to check internet connectivity
+check_internet() {
+    local max_attempts=5
+    local attempt=1
+    local timeout=5
+
+    while [ $attempt -le $max_attempts ]; do
+        echo "Checking internet connectivity (attempt $attempt/$max_attempts)..."
+        if ping -c 1 -W $timeout 8.8.8.8 >/dev/null 2>&1; then
+            echo "Internet connection is available."
+            return 0
+        fi
+        echo "No internet connection. Waiting before retry..."
+        sleep 10
+        attempt=$((attempt + 1))
+    done
+    
+    echo "WARNING: No internet connection after $max_attempts attempts."
+    return 1
+}
+
+# Function to download config with retry
+download_config() {
+    local url=$1
+    local output=$2
+    local max_attempts=5
+    local attempt=1
+    local timeout=30
+
+    while [ $attempt -le $max_attempts ]; do
+        echo "Downloading config (attempt $attempt/$max_attempts)..."
+        if wget --timeout=$timeout --tries=3 -O "$output" "$url" 2>/dev/null; then
+            echo "Successfully downloaded config file."
+            return 0
+        fi
+        echo "Download failed. Waiting before retry..."
+        sleep 10
+        attempt=$((attempt + 1))
+    done
+    
+    echo "WARNING: Failed to download config after $max_attempts attempts."
+    return 1
+}
+
+# Check for models_config.json and download it first thing
+CONFIG_FILE="/workspace/models_config.json"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Creating models_config.json..." | tee -a /workspace/logs/comfyui.log
+    if [ -n "$MODELS_CONFIG_URL" ]; then
+        if ! download_config "$MODELS_CONFIG_URL" "$CONFIG_FILE"; then
+            echo "Failed to download from URL. Creating default config..." | tee -a /workspace/logs/comfyui.log
+            echo '{
+                "checkpoints": [],
+                "vae": [],
+                "unet": [],
+                "diffusion_models": [],
+                "text_encoders": [],
+                "loras": [],
+                "upscale_models": [],
+                "clip": [],
+                "controlnet": [],
+                "clip_vision": [],
+                "ipadapter": [],
+                "style_models": []
+            }' > "$CONFIG_FILE"
+        fi
+    else
+        echo "No MODELS_CONFIG_URL provided. Creating default configuration..." | tee -a /workspace/logs/comfyui.log
+        echo '{
+            "checkpoints": [],
+            "vae": [],
+            "unet": [],
+            "diffusion_models": [],
+            "text_encoders": [],
+            "loras": [],
+            "upscale_models": [],
+            "clip": [],
+            "controlnet": [],
+            "clip_vision": [],
+            "ipadapter": [],
+            "style_models": []
+        }' > "$CONFIG_FILE"
+    fi
+else
+    echo "models_config.json already exists, using existing file" | tee -a /workspace/logs/comfyui.log
+fi
+
+# Create dirs and download ComfyUI if it doesn't exist
+if [ ! -d "/workspace/ComfyUI" ]; then
+    # Create workspace and log directories
+    mkdir -p /workspace/logs
+    
+    # Create log file
+    touch /workspace/logs/comfyui.log
+    
+    echo "Cloning ComfyUI..." | tee -a /workspace/logs/comfyui.log
     git clone --depth=1 https://github.com/comfyanonymous/ComfyUI /workspace/ComfyUI 2>&1 | tee -a /workspace/logs/comfyui.log
     
     # Install dependencies
@@ -91,6 +184,7 @@ if [ ! -d "/workspace/ComfyUI/.git" ]; then
     
     # Create model directories
     mkdir -p /workspace/ComfyUI/models/{checkpoints,vae,unet,diffusion_models,text_encoders,loras,upscale_models,clip,controlnet,clip_vision,ipadapter,style_models}
+    mkdir -p /workspace/ComfyUI/custom_nodes
     mkdir -p /workspace/ComfyUI/input
     mkdir -p /workspace/ComfyUI/output
     
@@ -145,91 +239,6 @@ check_model() {
     find /workspace/ComfyUI/models -type f -name "$filename" | grep -q .
     return $?
 }
-
-# Function to check internet connectivity
-check_internet() {
-    local max_attempts=5
-    local attempt=1
-    local timeout=5
-
-    while [ $attempt -le $max_attempts ]; do
-        echo "Checking internet connectivity (attempt $attempt/$max_attempts)..."
-        if ping -c 1 -W $timeout 8.8.8.8 >/dev/null 2>&1; then
-            echo "Internet connection is available."
-            return 0
-        fi
-        echo "No internet connection. Waiting before retry..."
-        sleep 10
-        attempt=$((attempt + 1))
-    done
-    
-    echo "WARNING: No internet connection after $max_attempts attempts."
-    return 1
-}
-
-# Function to download config with retry
-download_config() {
-    local url=$1
-    local output=$2
-    local max_attempts=5
-    local attempt=1
-    local timeout=30
-
-    while [ $attempt -le $max_attempts ]; do
-        echo "Downloading config (attempt $attempt/$max_attempts)..."
-        if wget --timeout=$timeout --tries=3 -O "$output" "$url" 2>/dev/null; then
-            echo "Successfully downloaded config file."
-            return 0
-        fi
-        echo "Download failed. Waiting before retry..."
-        sleep 10
-        attempt=$((attempt + 1))
-    done
-    
-    echo "WARNING: Failed to download config after $max_attempts attempts."
-    return 1
-}
-
-# Check for models_config.json
-CONFIG_FILE="/workspace/models_config.json"
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Creating models_config.json..."
-    if [ -n "$MODELS_CONFIG_URL" ]; then
-        if ! download_config "$MODELS_CONFIG_URL" "$CONFIG_FILE"; then
-            echo "Failed to download from URL. Creating default config..."
-            echo '{
-                "checkpoints": [],
-                "vae": [],
-                "unet": [],
-                "diffusion_models": [],
-                "text_encoders": [],
-                "loras": [],
-                "upscale_models": [],
-                "clip": [],
-                "controlnet": [],
-                "clip_vision": [],
-                "ipadapter": [],
-                "style_models": []
-            }' > "$CONFIG_FILE"
-        fi
-    else
-        echo "No MODELS_CONFIG_URL provided. Creating default configuration..."
-        echo '{
-            "checkpoints": [],
-            "vae": [],
-            "unet": [],
-            "diffusion_models": [],
-            "text_encoders": [],
-            "loras": [],
-            "upscale_models": [],
-            "clip": [],
-            "controlnet": [],
-            "clip_vision": [],
-            "ipadapter": [],
-            "style_models": []
-        }' > "$CONFIG_FILE"
-    fi
-fi
 
 # Check if models from config exist
 missing_models=false

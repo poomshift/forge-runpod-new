@@ -122,11 +122,44 @@ def main():
     # Ensure directories exist
     ensure_directories(base_path)
     
+    # Check if config path is a URL or local file
+    if config_path.startswith(('http://', 'https://')):
+        logger.info(f"Using models_config.json from URL: {config_path}")
+    else:
+        local_config_path = Path(config_path)
+        if local_config_path.exists():
+            logger.info(f"Using local models_config.json: {config_path}")
+            config_path = str(local_config_path.absolute())
+        else:
+            logger.error(f"Local config file not found at {config_path}")
+            default_config = {
+                "checkpoints": [],
+                "vae": [],
+                "unet": [],
+                "diffusion_models": [],
+                "text_encoders": [],
+                "loras": [],
+                "upscale_models": [],
+                "clip": [],
+                "controlnet": [],
+                "clip_vision": [],
+                "ipadapter": [],
+                "style_models": []
+            }
+            logger.info("Using default empty configuration")
+            with open('/workspace/models_config.json', 'w') as f:
+                json.dump(default_config, f, indent=4)
+            config_path = '/workspace/models_config.json'
+    
     # Fetch configuration
     config = get_config(config_path)
     if not config:
         logger.error("Failed to get configuration, exiting.")
         return
+    
+    # Log the number of models to download
+    total_models = sum(len(urls) for urls in config.values() if isinstance(urls, list))
+    logger.info(f"Found {total_models} models in configuration")
     
     # Download models from each category
     for category, urls in config.items():
