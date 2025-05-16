@@ -630,7 +630,13 @@ def create_output_zip():
 
 def download_from_civitai(url, api_key=None, model_type="loras"):
     """Download a model from Civitai using aria2c"""
-    model_dir = os.path.join('/workspace', 'ComfyUI', 'models', model_type)
+    # Handle model_type with or without 'models/' prefix
+    if model_type.startswith('models/'):
+        model_path = model_type
+    else:
+        model_path = os.path.join('models', model_type)
+    
+    model_dir = os.path.join('/workspace', 'ComfyUI', model_path)
     os.makedirs(model_dir, exist_ok=True)
     
     download_url = url
@@ -667,7 +673,13 @@ def download_from_civitai(url, api_key=None, model_type="loras"):
 
 def download_from_huggingface(url, model_type="loras"):
     """Download a model from Hugging Face using aria2c"""
-    model_dir = os.path.join('/workspace', 'ComfyUI', 'models', model_type)
+    # Handle model_type with or without 'models/' prefix
+    if model_type.startswith('models/'):
+        model_path = model_type
+    else:
+        model_path = os.path.join('models', model_type)
+    
+    model_dir = os.path.join('/workspace', 'ComfyUI', model_path)
     os.makedirs(model_dir, exist_ok=True)
     
     try:
