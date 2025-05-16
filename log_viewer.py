@@ -46,7 +46,7 @@ HTML_TEMPLATE = '''
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alchemist's ComfyUI</title>
+    <title>ComfyUI Runpod By PromptAlchemist</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -75,6 +75,18 @@ HTML_TEMPLATE = '''
             background: var(--card);
             border-radius: var(--radius);
             box-shadow: var(--shadow);
+        }
+        .banner {
+            width: 100%;
+            margin-bottom: 24px;
+            border-radius: var(--radius);
+            overflow: hidden;
+            display: block;
+        }
+        .banner img {
+            width: 100%;
+            height: auto;
+            display: block;
         }
         header {
             display: flex;
@@ -637,6 +649,9 @@ HTML_TEMPLATE = '''
 </head>
 <body>
     <div class="wrap">
+        <a href="https://www.facebook.com/PromptAlchemist" target="_blank" class="banner">
+            <img src="/banner.jpg" alt="PromptAlchemist Banner">
+        </a>
         <header>
             <div class="title">Alchemist's ComfyUI</div>
             <div class="controls">
@@ -1237,6 +1252,16 @@ def download_googledrive():
     
     result = download_from_googledrive(url, model_type, custom_filename)
     return jsonify(result)
+
+@app.route('/banner.jpg')
+def serve_banner():
+    """Serve the banner image"""
+    banner_path = os.path.join(os.path.dirname(__file__), 'banner.jpg')
+    if os.path.exists(banner_path):
+        return send_file(banner_path, mimetype='image/jpeg')
+    else:
+        # Return a 404 if the banner doesn't exist
+        return "Banner not found", 404
 
 @app.route('/')
 def index():
