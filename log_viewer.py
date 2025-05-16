@@ -885,17 +885,40 @@ def tail_log_file():
     if not os.path.exists(log_file):
         os.makedirs('logs', exist_ok=True)
         open(log_file, 'a').close()
+        print(f"Created new log file at {log_file}")
+    else:
+        print(f"Found existing log file at {log_file}")
     
     def follow(file_path):
         """Generator function that yields new lines in a file with proper handling of file rotation/truncation"""
+        print(f"Starting to follow log file: {file_path}")
         current_position = 0
+        current_inode = os.stat(file_path).st_ino if os.path.exists(file_path) else None
+        
         while True:
             try:
-                # Re-open the file on each iteration to detect file truncation or rotation
-                with open(file_path, 'r') as file:
+                # Check if file exists
+                if not os.path.exists(file_path):
+                    print(f"Log file does not exist: {file_path}, waiting...")
+                    time.sleep(1)
+                    continue
+                
+                # Check if file has been rotated (different inode)
+                try:
+                    new_inode = os.stat(file_path).st_ino
+                    if current_inode is not None and new_inode != current_inode:
+                        print(f"Log file rotated (inode changed: {current_inode} -> {new_inode})")
+                        current_position = 0
+                        current_inode = new_inode
+                except Exception as e:
+                    print(f"Error checking file inode: {e}")
+                
+                # Open file and read new content
+                with open(file_path, 'r', encoding='utf-8', errors='replace') as file:
                     # Check if file has been truncated
                     file_size = os.path.getsize(file_path)
                     if file_size < current_position:
+                        print(f"Log file truncated (size: {file_size}, previous position: {current_position})")
                         current_position = 0  # File was truncated, start from beginning
                     
                     # Seek to last position
@@ -905,6 +928,7 @@ def tail_log_file():
                     new_lines = file.readlines()
                     if new_lines:
                         current_position = file.tell()
+                        print(f"Read {len(new_lines)} new lines, position now at {current_position}")
                         for line in new_lines:
                             yield line
                     else:
@@ -916,7 +940,8 @@ def tail_log_file():
 
     try:
         # Load initial content
-        with open(log_file, 'r') as file:
+        print("Loading initial log content...")
+        with open(log_file, 'r', encoding='utf-8', errors='replace') as file:
             content = file.readlines()
             processed_content = []
             
@@ -933,10 +958,12 @@ def tail_log_file():
                 log_buffer.clear()
                 log_buffer.extend(processed_content)
             
+            print(f"Loaded {len(processed_content)} initial log lines")
             # Emit initial logs
             socketio.emit('logs', {'logs': get_current_logs()})
         
         # Start the continuous tail
+        print("Starting continuous log monitoring...")
         prev_line = None
         for line in follow(log_file):
             stripped_line = line.strip()
@@ -951,6 +978,8 @@ def tail_log_file():
     except Exception as e:
         print(f"Error tailing log file: {e}")
         time.sleep(5)
+        # Try to restart the log monitoring
+        tail_log_file()
 
 def create_output_zip():
     """Create a zip file of the ComfyUI output directory"""
