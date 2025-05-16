@@ -100,13 +100,24 @@ if [ ! -d "/workspace/ComfyUI/.git" ]; then
     
     echo "Cloning custom nodes..." | tee -a /workspace/logs/comfyui.log
     git clone --depth=1 https://github.com/ltdrdata/ComfyUI-Manager.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Manager | tee -a /workspace/logs/comfyui.log
+    git clone --depth=1 https://github.com/ltdrdata/ComfyUI-Impact-Pack.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Impact-Pack | tee -a /workspace/logs/comfyui.log
+    git clone --depth=1 https://github.com/cubiq/ComfyUI_essentials.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI_essentials | tee -a /workspace/logs/comfyui.log
+    git clone --depth=1 https://github.com/ltdrdata/ComfyUI-Inspire-Pack.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Inspire-Pack | tee -a /workspace/logs/comfyui.log
+    git clone --depth=1 https://github.com/Fannovel16/comfyui_controlnet_aux.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh comfyui_controlnet_aux | tee -a /workspace/logs/comfyui.log
+    git clone --depth=1 https://github.com/nicofdga/DZ-FaceDetailer.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh DZ-FaceDetailer | tee -a /workspace/logs/comfyui.log
+    git clone --depth=1 https://github.com/cubiq/ComfyUI_IPAdapter_plus.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI_IPAdapter_plus | tee -a /workspace/logs/comfyui.log
+    git clone --depth=1 https://github.com/ssitu/ComfyUI_UltimateSDUpscale.git --recursive 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI_UltimateSDUpscale | tee -a /workspace/logs/comfyui.log
     git clone --depth=1 https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-VideoHelperSuite | tee -a /workspace/logs/comfyui.log
+    git clone --depth=1 https://github.com/Acly/comfyui-inpaint-nodes.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh comfyui-inpaint-nodes | tee -a /workspace/logs/comfyui.log
     git clone --depth=1 https://github.com/kijai/ComfyUI-KJNodes.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-KJNodes | tee -a /workspace/logs/comfyui.log
     git clone --depth=1 https://github.com/city96/ComfyUI-GGUF.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-GGUF | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/ltdrdata/ComfyUI-Inspire-Pack.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Inspire-Pack | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/pythongosssss/ComfyUI-Custom-Scripts.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Custom-Scripts | tee -a /workspace/logs/comfyui.log
     git clone --depth=1 https://github.com/rgthree/rgthree-comfy.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh rgthree-comfy | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/cubiq/ComfyUI_essentials.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI_essentials | tee -a /workspace/logs/comfyui.log
+    git clone --depth=1 https://github.com/AlekPet/ComfyUI_Custom_Nodes_AlekPet.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI_Custom_Nodes_AlekPet | tee -a /workspace/logs/comfyui.log
+    git clone --depth=1 https://github.com/CY-CHENYUE/ComfyUI-Gemini-API.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Gemini-API | tee -a /workspace/logs/comfyui.log
+    git clone --depth=1 https://github.com/QijiTec/ComfyUI-RED-UNO.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-RED-UNO | tee -a /workspace/logs/comfyui.log
+    git clone --depth=1 https://github.com/crystian/ComfyUI-Crystools.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Crystools | tee -a /workspace/logs/comfyui.log
+    git clone --depth=1 https://github.com/justUmen/Bjornulf_custom_nodes.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh Bjornulf_custom_nodes | tee -a /workspace/logs/comfyui.log
+    git clone --depth=1 https://github.com/pythongosssss/ComfyUI-Custom-Scripts.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Custom-Scripts | tee -a /workspace/logs/comfyui.log
     
     echo "Total size of custom nodes:" | tee -a /workspace/logs/comfyui.log && du -sh . | tee -a /workspace/logs/comfyui.log
     
