@@ -102,6 +102,9 @@ HTML_TEMPLATE = '''
             font-size: 1.1rem;
             font-weight: 600;
             margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .log-box {
             background: #f3f4f6;
@@ -164,6 +167,58 @@ HTML_TEMPLATE = '''
             background: #fee2e2;
             color: #991b1b;
             display: block;
+        }
+        .collapsible {
+            background: #f3f4f6;
+            border-radius: var(--radius);
+            margin-bottom: 16px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+        .collapsible-header {
+            padding: 12px 16px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f9fafb;
+        }
+        .collapsible-content {
+            padding: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+        }
+        .collapsible.open .collapsible-content {
+            padding: 16px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .model-list, .node-list {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+        .model-list li, .node-list li {
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+        .model-list li:last-child, .node-list li:last-child {
+            border-bottom: none;
+        }
+        .category-name {
+            font-weight: 600;
+            margin: 12px 0 8px 0;
+            padding-bottom: 4px;
+            border-bottom: 1px solid var(--border);
+        }
+        .toggle-icon {
+            transition: transform 0.3s ease;
+        }
+        .collapsible.open .toggle-icon {
+            transform: rotate(180deg);
         }
         @media (max-width: 700px) {
             .wrap { padding: 8px; }
@@ -323,6 +378,7 @@ HTML_TEMPLATE = '''
                 statusDiv.className = 'status-message status-error';
             });
         }
+        
         function downloadFromHuggingFace() {
             const url = document.getElementById('hfUrl').value;
             const modelType = document.getElementById('hfModelType').value;
@@ -345,6 +401,11 @@ HTML_TEMPLATE = '''
                 statusDiv.className = 'status-message status-error';
             });
         }
+        
+        function toggleCollapsible(element) {
+            element.classList.toggle('open');
+        }
+        
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Page loaded, initializing systems');
             
@@ -359,6 +420,13 @@ HTML_TEMPLATE = '''
             
             // Make the Refresh Logs button call our enhanced function
             document.getElementById('refresh-logs-btn').addEventListener('click', forceRefreshLogs);
+            
+            // Initialize collapsible sections
+            document.querySelectorAll('.collapsible-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    toggleCollapsible(this.parentElement);
+                });
+            });
         });
     </script>
 </head>
@@ -372,10 +440,57 @@ HTML_TEMPLATE = '''
                 <a href="/download/outputs" class="button">Download Outputs</a>
             </div>
         </header>
+        
+        <div class="section">
+            <div class="section-title">Installation Info</div>
+            
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Custom Nodes ({{ custom_nodes|length }})</span>
+                    <span class="toggle-icon">▼</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul class="node-list">
+                        {% if custom_nodes %}
+                            {% for node in custom_nodes %}
+                                <li>{{ node.name }}</li>
+                            {% endfor %}
+                        {% else %}
+                            <li>No custom nodes installed</li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Installed Models ({{ total_models }})</span>
+                    <span class="toggle-icon">▼</span>
+                </div>
+                <div class="collapsible-content">
+                    {% if models %}
+                        {% for category, items in models.items() %}
+                            {% if items %}
+                                <div class="category-name">{{ category }} ({{ items|length }})</div>
+                                <ul class="model-list">
+                                    {% for model in items %}
+                                        <li>{{ model.name }}</li>
+                                    {% endfor %}
+                                </ul>
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <p>No models found</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
         <div class="section">
             <div class="section-title">Logs</div>
             <div id="log-box" class="log-box">{{ logs }}</div>
         </div>
+        
         <div class="section">
             <div class="section-title">Model Downloaders</div>
             <div class="downloaders">
