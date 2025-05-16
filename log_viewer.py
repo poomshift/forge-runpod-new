@@ -324,7 +324,7 @@ HTML_TEMPLATE = '''
         }
         .collapsible.open .collapsible-content {
             padding: 16px;
-            max-height: 300px;
+            max-height: 500px;
             overflow-y: auto;
         }
         .model-list, .node-list {
@@ -597,10 +597,6 @@ HTML_TEMPLATE = '''
             document.getElementById(tabName + '-downloader').classList.add('active');
         }
         
-        function toggleCollapsible(element) {
-            element.classList.toggle('open');
-        }
-        
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Page loaded, initializing systems');
             
@@ -613,13 +609,11 @@ HTML_TEMPLATE = '''
             // Start auto-polling
             startAutoPoll();
             
-            // Make the Refresh Logs button call our enhanced function
-            document.getElementById('refresh-logs-btn').addEventListener('click', forceRefreshLogs);
-            
             // Initialize collapsible sections
             document.querySelectorAll('.collapsible-header').forEach(header => {
                 header.addEventListener('click', function() {
-                    toggleCollapsible(this.parentElement);
+                    const collapsible = this.parentElement;
+                    collapsible.classList.toggle('open');
                 });
             });
             
@@ -663,7 +657,7 @@ HTML_TEMPLATE = '''
         <div class="section">
             <div class="section-title">Pre-installed</div>
             
-            <div class="collapsible">
+            <div class="collapsible" onclick="this.classList.toggle('open')">
                 <div class="collapsible-header">
                     <span>Custom Nodes ({{ custom_nodes|length }})</span>
                     <span class="toggle-icon">▼</span>
@@ -681,7 +675,7 @@ HTML_TEMPLATE = '''
                 </div>
             </div>
             
-            <div class="collapsible">
+            <div class="collapsible" onclick="this.classList.toggle('open')">
                 <div class="collapsible-header">
                     <span>Installed Models ({{ total_models }})</span>
                     <span class="toggle-icon">▼</span>
@@ -723,12 +717,12 @@ HTML_TEMPLATE = '''
             <div class="section-title">Model Downloaders</div>
             <div class="downloaders">
                 <div class="tabs">
-                    <div id="civitai-tab" class="tab" onclick="switchTab('civitai')">Civitai</div>
+                    <div id="civitai-tab" class="tab active" onclick="switchTab('civitai')">Civitai</div>
                     <div id="huggingface-tab" class="tab" onclick="switchTab('huggingface')">Hugging Face</div>
                     <div id="googledrive-tab" class="tab" onclick="switchTab('googledrive')">Google Drive</div>
                 </div>
                 
-                <div id="civitai-downloader" class="downloader">
+                <div id="civitai-downloader" class="downloader active">
                     <div style="font-weight:600;margin-bottom:8px;">Civitai Downloader</div>
                     <label for="modelUrl">Model URL</label>
                     <input type="url" id="modelUrl" placeholder="https://civitai.com/api/download/models/1399707" required>
