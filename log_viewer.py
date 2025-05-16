@@ -154,9 +154,14 @@ HTML_TEMPLATE = '''
         }
         .log-controls {
             display: flex;
-            justify-content: flex-end;
+            justify-content: space-between;
             align-items: center;
             margin-bottom: 8px;
+            gap: 8px;
+        }
+        .log-source-toggle {
+            display: flex;
+            align-items: center;
             gap: 8px;
         }
         .auto-scroll-toggle {
@@ -345,6 +350,7 @@ HTML_TEMPLATE = '''
         let isUpdating = false;
         let autoScroll = true;
         let userScrolled = false;
+        let useContainerLogs = false;
         
         function initializeWebSocket() {
             try {
@@ -509,11 +515,20 @@ HTML_TEMPLATE = '''
             });
         }
         
+        function toggleContainerLogs() {
+            useContainerLogs = !useContainerLogs;
+            forceRefreshLogs();
+            localStorage.setItem('useContainerLogs', useContainerLogs ? 'true' : 'false');
+            console.log('Container logs ' + (useContainerLogs ? 'enabled' : 'disabled'));
+        }
+        
         function fetchLatestLogs(isManualRefresh) {
             if (isUpdating && !isManualRefresh) return;
             
             console.log('Fetching latest logs...');
-            fetch('/logs', { 
+            const endpoint = useContainerLogs ? '/container_logs' : '/logs';
+            
+            fetch(endpoint, { 
                 method: 'GET',
                 cache: 'no-cache',
                 headers: {
@@ -646,6 +661,13 @@ HTML_TEMPLATE = '''
             // Initialize WebSocket and fallback polling
             initializeWebSocket();
             
+            // Set up container logs toggle from saved preference
+            const savedContainerLogs = localStorage.getItem('useContainerLogs');
+            if (savedContainerLogs !== null) {
+                useContainerLogs = savedContainerLogs === 'true';
+                document.getElementById('container-log-toggle').checked = useContainerLogs;
+            }
+            
             // Immediately fetch logs on page load
             fetchLatestLogs();
             
@@ -655,14 +677,21 @@ HTML_TEMPLATE = '''
             // Make the Refresh Logs button call our enhanced function
             document.getElementById('refresh-logs-btn').addEventListener('click', forceRefreshLogs);
             
-            // Initialize collapsible sections
-            document.querySelectorAll('.collapsible-header').forEach(header => {
+            // Initialize collapsible sections - fixed implementation
+            document.querySelectorAll('.collapsible').forEach(function(collapsible) {
+                const header = collapsible.querySelector('.collapsible-header');
                 header.addEventListener('click', function() {
-                    toggleCollapsible(this.parentElement);
+                    collapsible.classList.toggle('open');
                 });
             });
             
             // Initialize tabs - start with Civitai tab active
+            document.querySelectorAll('.tab').forEach(function(tab) {
+                tab.addEventListener('click', function() {
+                    const tabName = this.id.replace('-tab', '');
+                    switchTab(tabName);
+                });
+            });
             switchTab('civitai');
             
             // Set up auto-scroll toggle from saved preference
@@ -747,6 +776,13 @@ HTML_TEMPLATE = '''
         <div class="section">
             <div class="section-title">Logs</div>
             <div class="log-controls">
+                <div class="log-source-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="container-log-toggle" onchange="toggleContainerLogs()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Show Container Logs</span>
+                </div>
                 <div class="auto-scroll-toggle">
                     <span>Auto-scroll</span>
                     <label class="toggle-switch">
@@ -1311,6 +1347,34 @@ def download_googledrive():
     
     result = download_from_googledrive(url, model_type, custom_filename)
     return jsonify(result)
+
+@app.route('/container_logs')
+def get_container_logs():
+    """Get logs directly from the container"""
+    try:
+        # Use subprocess to get the container logs
+        cmd = ["docker", "logs", "--tail", "500", "$(hostname)"]
+        
+        try:
+            # Try docker first
+            result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+            logs = result.stdout
+        except:
+            # If docker fails, try reading from system journal
+            try:
+                result = subprocess.run(["journalctl", "-n", "500"], capture_output=True, text=True)
+                logs = result.stdout
+            except:
+                # Last resort: try to get logs from stdout/stderr files
+                logs = "Could not access container logs directly."
+        
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        header = f"Container Logs - Last 500 lines (as of {timestamp})\n"
+        header += "=" * 80 + "\n\n"
+        
+        return jsonify({'logs': header + logs})
+    except Exception as e:
+        return jsonify({'logs': f"Error fetching container logs: {str(e)}"})
 
 @app.route('/')
 def index():
