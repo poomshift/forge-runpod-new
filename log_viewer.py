@@ -312,6 +312,20 @@ HTML_TEMPLATE = '''
             color: #991b1b;
             display: block;
         }
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
         .collapsible {
             background: #f3f4f6;
             border-radius: var(--radius);
@@ -459,6 +473,75 @@ HTML_TEMPLATE = '''
             console.log('Auto-scroll ' + (autoScroll ? 'enabled' : 'disabled'));
         }
         
+        function fetchModels() {
+            console.log('Fetching installed models...');
+            
+            // Show loading indicator
+            const loadingIndicator = document.getElementById('models-loading');
+            if (loadingIndicator) {
+                loadingIndicator.style.display = 'inline-block';
+            }
+            
+            fetch('/api/models', {
+                method: 'GET',
+                cache: 'no-cache',
+                headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                }
+            })
+            .then(response => response.json())
+            .then(models => {
+                // Hide loading indicator
+                if (loadingIndicator) {
+                    loadingIndicator.style.display = 'none';
+                }
+                
+                if (models) {
+                    // Calculate total models
+                    let totalModels = 0;
+                    for (const category in models) {
+                        if (models[category]) {
+                            totalModels += models[category].length;
+                        }
+                    }
+                    
+                    // Update total models count in header
+                    const modelsHeader = document.querySelector('#models-section .collapsible-header span:first-child');
+                    if (modelsHeader) {
+                        modelsHeader.textContent = `Installed Models (${totalModels})`;
+                    }
+                    
+                    // Update models content
+                    const modelsContainer = document.getElementById('models-content');
+                    if (modelsContainer) {
+                        if (Object.keys(models).length > 0) {
+                            let html = '';
+                            for (const category in models) {
+                                if (models[category] && models[category].length > 0) {
+                                    html += `<div class="category-name">${category} (${models[category].length})</div>
+                                            <ul class="model-list">`;
+                                    
+                                    for (const model of models[category]) {
+                                        html += `<li>${model.name}</li>`;
+                                    }
+                                    
+                                    html += `</ul>`;
+                                }
+                            }
+                            modelsContainer.innerHTML = html;
+                        } else {
+                            modelsContainer.innerHTML = '<p>No models found</p>';
+                        }
+                    }
+                }
+                console.log('Models updated successfully');
+            })
+            .catch(error => {
+                console.error('Error fetching models:', error);
+            });
+        }
+        
         function forceRefreshLogs() {
             console.log('Forcing log refresh...');
             const logBox = document.getElementById('log-box');
@@ -533,6 +616,11 @@ HTML_TEMPLATE = '''
             .then(data => {
                 statusDiv.textContent = data.message;
                 statusDiv.className = data.success ? 'status-message status-success' : 'status-message status-error';
+                
+                // Reload models list if download was successful
+                if (data.success) {
+                    setTimeout(fetchModels, 1000); // Refresh models after download completes
+                }
             })
             .catch(error => {
                 statusDiv.textContent = 'Error: ' + error.message;
@@ -556,6 +644,11 @@ HTML_TEMPLATE = '''
             .then(data => {
                 statusDiv.textContent = data.message;
                 statusDiv.className = data.success ? 'status-message status-success' : 'status-message status-error';
+                
+                // Reload models list if download was successful
+                if (data.success) {
+                    setTimeout(fetchModels, 1000); // Refresh models after download completes
+                }
             })
             .catch(error => {
                 statusDiv.textContent = 'Error: ' + error.message;
@@ -586,6 +679,11 @@ HTML_TEMPLATE = '''
             .then(data => {
                 statusDiv.textContent = data.message;
                 statusDiv.className = data.success ? 'status-message status-success' : 'status-message status-error';
+                
+                // Reload models list if download was successful
+                if (data.success) {
+                    setTimeout(fetchModels, 1000); // Refresh models after download completes
+                }
             })
             .catch(error => {
                 statusDiv.textContent = 'Error: ' + error.message;
@@ -617,6 +715,9 @@ HTML_TEMPLATE = '''
             
             // Immediately fetch logs on page load
             fetchLatestLogs();
+            
+            // Fetch models data
+            fetchModels();
             
             // Start auto-polling
             startAutoPoll();
@@ -682,26 +783,15 @@ HTML_TEMPLATE = '''
                 </div>
             </div>
             
-            <div class="collapsible">
-                <div class="collapsible-header" onclick="this.parentElement.classList.toggle('open')">
-                    <span>Installed Models ({{ total_models }})</span>
-                    <span class="toggle-icon">▼</span>
+            <div class="collapsible" id="models-section">
+                <div class="collapsible-header">
+                    <span onclick="this.parentElement.parentElement.classList.toggle('open')">Installed Models ({{ total_models }})</span>
+                    <button onclick="event.stopPropagation(); fetchModels()" style="background:none; border:none; cursor:pointer; padding:5px; font-size:12px;">🔄</button>
+                    <span id="models-loading" class="loading" style="display:none;"></span>
+                    <span class="toggle-icon" onclick="this.parentElement.parentElement.classList.toggle('open')">▼</span>
                 </div>
-                <div class="collapsible-content">
-                    {% if models %}
-                        {% for category, items in models.items() %}
-                            {% if items %}
-                                    <div class="category-name">{{ category }} ({{ items|length }})</div>
-                                <ul class="model-list">
-                                    {% for model in items %}
-                                        <li>{{ model.name }}</li>
-                                    {% endfor %}
-                                </ul>
-                            {% endif %}
-                        {% endfor %}
-                    {% else %}
-                        <p>No models found</p>
-                    {% endif %}
+                <div class="collapsible-content" id="models-content">
+                    <p>Loading models...</p>
                 </div>
                 </div>
             </div>
@@ -847,11 +937,11 @@ def get_installed_custom_nodes():
     return sorted(custom_nodes, key=lambda x: x['name'].lower())
 
 def get_installed_models():
-    """Get a list of installed models from models_config.json"""
+    """Get a list of installed models from models_config.json and actual directories"""
     models = {}
     
     try:
-        # Check multiple possible locations for models_config.json
+        # First try to load from models_config.json
         config_paths = [
             '/workspace/models_config.json', 
             './models_config.json',
@@ -864,33 +954,98 @@ def get_installed_models():
                 import json
                 with open(path, 'r') as file:
                     model_config = json.load(file)
+                print(f"Loaded models_config.json from {path}")
                 break
         
-        if not model_config:
+        if model_config:
+            # Process each model category from config
+            for category, urls in model_config.items():
+                if urls:  # Only process non-empty categories
+                    model_files = []
+                    for url in urls:
+                        # Extract filename from URL
+                        filename = url.split('/')[-1]
+                        # Add model information
+                        model_files.append({
+                            'name': filename,
+                            'path': f"/workspace/ComfyUI/models/{category}/{filename}",
+                            'size': "From config",
+                            'url': url
+                        })
+                    
+                    if model_files:
+                        # Sort by name
+                        model_files.sort(key=lambda x: x['name'].lower())
+                        models[category] = model_files
+        else:
             print("Warning: models_config.json not found in expected locations")
-            return {}
         
-        # Process each model category
-        for category, urls in model_config.items():
-            if urls:  # Only process non-empty categories
-                model_files = []
-                for url in urls:
-                    # Extract filename from URL
-                    filename = url.split('/')[-1]
-                    # Add model information
-                    model_files.append({
-                        'name': filename,
-                        'path': f"/workspace/ComfyUI/models/{category}/{filename}",
-                        'size': "From config",
-                        'url': url
-                    })
-                
-                if model_files:
-                    # Sort by name
-                    model_files.sort(key=lambda x: x['name'].lower())
-                    models[category] = model_files
+        # Now also scan the actual models directories to find real files
+        base_models_dirs = [
+            '/workspace/ComfyUI/models/',
+            './ComfyUI/models/',
+            os.path.join(os.path.dirname(__file__), 'ComfyUI', 'models')
+        ]
+        
+        model_dir = None
+        for path in base_models_dirs:
+            if os.path.exists(path) and os.path.isdir(path):
+                model_dir = path
+                print(f"Found models directory at {path}")
+                break
+        
+        if model_dir:
+            # Scan each subdirectory in the models directory
+            for category in os.listdir(model_dir):
+                category_path = os.path.join(model_dir, category)
+                if os.path.isdir(category_path):
+                    # Skip directories like __pycache__ or hidden directories
+                    if category.startswith('__') or category.startswith('.'):
+                        continue
+                    
+                    files = []
+                    for file in os.listdir(category_path):
+                        if file.endswith(('.safetensors', '.ckpt', '.pt', '.pth', '.bin')):
+                            file_path = os.path.join(category_path, file)
+                            file_size = os.path.getsize(file_path)
+                            
+                            # Convert size to human-readable format
+                            if file_size < 1024:
+                                size_str = f"{file_size} B"
+                            elif file_size < 1024 * 1024:
+                                size_str = f"{file_size/1024:.1f} KB"
+                            elif file_size < 1024 * 1024 * 1024:
+                                size_str = f"{file_size/(1024*1024):.1f} MB"
+                            else:
+                                size_str = f"{file_size/(1024*1024*1024):.1f} GB"
+                            
+                            files.append({
+                                'name': file,
+                                'path': file_path,
+                                'size': size_str
+                            })
+                    
+                    if files:
+                        # Sort files by name
+                        files.sort(key=lambda x: x['name'].lower())
+                        
+                        # If this category already exists from the config, merge the lists
+                        if category in models:
+                            # Create a set of existing filenames to avoid duplicates
+                            existing_names = {item['name'] for item in models[category]}
+                            
+                            # Only add files that aren't already in the list
+                            for file in files:
+                                if file['name'] not in existing_names:
+                                    models[category].append(file)
+                                    existing_names.add(file['name'])
+                            
+                            # Re-sort the merged list
+                            models[category].sort(key=lambda x: x['name'].lower())
+                        else:
+                            models[category] = files
     except Exception as e:
-        print(f"Error parsing models from models_config.json: {e}")
+        print(f"Error parsing models: {e}")
     
     # Sort categories alphabetically
     return dict(sorted(models.items()))
