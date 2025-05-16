@@ -240,6 +240,14 @@ check_model() {
     return $?
 }
 
+# Initialize GPU - Do this before downloading models to ensure GPU is ready
+echo "Initializing GPU..."
+if ! check_gpu; then
+    echo "WARNING: GPU initialization failed. Services may not function properly."
+else
+    reset_gpu
+fi
+
 # Check if models from config exist
 missing_models=false
 if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
@@ -263,14 +271,6 @@ if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
     fi
 else
     echo "No valid models_config.json found. Skipping model checks..."
-fi
-
-# Initialize GPU
-echo "Initializing GPU..."
-if ! check_gpu; then
-    echo "WARNING: GPU initialization failed. Services may not function properly."
-else
-    reset_gpu
 fi
 
 # Start services with proper sequencing

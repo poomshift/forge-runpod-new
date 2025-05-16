@@ -112,10 +112,16 @@ def main():
     skip_download = os.getenv('SKIP_MODEL_DOWNLOAD', '').lower() == 'true'
     force_download = os.getenv('FORCE_MODEL_DOWNLOAD', '').lower() == 'true'
     
+    # Skip if explicitly told to skip
     if skip_download:
         logger.info("Model download skipped due to SKIP_MODEL_DOWNLOAD=true")
         return
     
+    # Check if ComfyUI is ready by verifying its directory structure
+    if not os.path.exists('/workspace/ComfyUI/models/checkpoints'):
+        logger.info("ComfyUI models directory not ready yet. Skipping model downloads for now.")
+        return
+        
     # Base path for ComfyUI
     base_path = Path('/workspace/ComfyUI')
     

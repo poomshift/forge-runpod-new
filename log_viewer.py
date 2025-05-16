@@ -352,22 +352,6 @@ HTML_TEMPLATE = '''
         .model-list li:last-child, .node-list li:last-child {
             border-bottom: none;
         }
-        .model-status {
-            display: inline-block;
-            font-size: 0.75rem;
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin-left: 8px;
-            font-weight: 600;
-        }
-        .status-installed {
-            background-color: #dcfce7;
-            color: #166534;
-        }
-        .status-planned {
-            background-color: #dbeafe;
-            color: #1e40af;
-        }
         .category-name {
             font-weight: 600;
             margin: 12px 0 8px 0;
@@ -710,9 +694,7 @@ HTML_TEMPLATE = '''
                                     <div class="category-name">{{ category }} ({{ items|length }})</div>
                                 <ul class="model-list">
                                     {% for model in items %}
-                                        <li>{{ model.name }} 
-                                            <span class="model-status status-{{ model.status|lower }}">{{ model.status }}</span>
-                                        </li>
+                                        <li>{{ model.name }}</li>
                                     {% endfor %}
                                 </ul>
                             {% endif %}
@@ -896,17 +878,10 @@ def get_installed_models():
                     # Extract filename from URL
                     filename = url.split('/')[-1]
                     
-                    # Check if file exists
-                    file_path = f"/workspace/ComfyUI/models/{category}/{filename}"
-                    file_exists = os.path.exists(file_path)
-                    status = "Installed" if file_exists else "Planned"
-                    
                     # Add model information
                     model_files.append({
                         'name': filename,
-                        'path': file_path,
-                        'size': "From config",
-                        'status': status,
+                        'path': f"/workspace/ComfyUI/models/{category}/{filename}",
                         'url': url
                     })
                 
