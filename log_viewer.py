@@ -26,11 +26,12 @@ HTML_TEMPLATE = '''
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ComfyUI Log Viewer</title>
+    <title>Alchemist's ComfyUI</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #2563eb;
+            --success: #10b981;
             --bg: #f9fafb;
             --card: #fff;
             --text: #222;
@@ -84,6 +85,11 @@ HTML_TEMPLATE = '''
             background: #f3f4f6;
             color: var(--text);
             border: 1px solid var(--border);
+        }
+        .button.success {
+            background: var(--success);
+            color: #fff;
+            border: none;
         }
         .button:active {
             background: #1e40af;
@@ -165,20 +171,27 @@ HTML_TEMPLATE = '''
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
         let socket;
+        let lastLogs = '';
         function initializeWebSocket() {
             socket = io();
             socket.on('new_log_line', function(data) {
                 appendLogLine(data.line);
             });
             socket.on('logs', function(data) {
-                document.getElementById('log-box').innerHTML = data.logs;
-                scrollToBottom();
+                updateLogBox(data.logs);
             });
         }
         function appendLogLine(line) {
             const logBox = document.getElementById('log-box');
             logBox.innerHTML += line + '\n';
             scrollToBottom();
+        }
+        function updateLogBox(logs) {
+            if (logs !== lastLogs) {
+                document.getElementById('log-box').innerHTML = logs;
+                lastLogs = logs;
+                scrollToBottom();
+            }
         }
         function scrollToBottom() {
             const logBox = document.getElementById('log-box');
@@ -188,6 +201,16 @@ HTML_TEMPLATE = '''
             fetch('/refresh_logs')
                 .then(response => response.json())
                 .then(data => {})
+                .catch(error => {});
+        }
+        function pollLogs() {
+            fetch('/logs')
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.logs !== undefined) {
+                        updateLogBox(data.logs);
+                    }
+                })
                 .catch(error => {});
         }
         function downloadFromCivitai() {
@@ -238,15 +261,16 @@ HTML_TEMPLATE = '''
         document.addEventListener('DOMContentLoaded', function() {
             initializeWebSocket();
             scrollToBottom();
+            setInterval(pollLogs, 2000);
         });
     </script>
 </head>
 <body>
     <div class="wrap">
         <header>
-            <div class="title">ComfyUI Log Viewer</div>
+            <div class="title">Alchemist's ComfyUI</div>
             <div class="controls">
-                <a href="{{ proxy_url }}" target="_blank" class="button secondary">Open ComfyUI</a>
+                <a href="{{ proxy_url }}" target="_blank" class="button success">Open ComfyUI</a>
                 <button onclick="refreshLogs()" class="button">Refresh Logs</button>
                 <a href="/download/outputs" class="button secondary">Download Outputs</a>
             </div>
