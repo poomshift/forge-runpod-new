@@ -90,7 +90,7 @@ HTML_TEMPLATE = '''
         }
         header {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-end;
             align-items: center;
             margin-bottom: 32px;
         }
@@ -653,7 +653,6 @@ HTML_TEMPLATE = '''
             <img src="/banner.jpg" alt="PromptAlchemist Banner">
         </a>
         <header>
-            <div class="title">ComfyUI Runpod By PromptAlchemist</div>
             <div class="controls">
                 <a href="{{ proxy_url }}" target="_blank" class="button success">Open ComfyUI</a>
                 <a href="{{ jupyter_url }}" target="_blank" class="button orange">Open JupyterLab</a>
