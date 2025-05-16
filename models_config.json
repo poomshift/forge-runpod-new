@@ -22,7 +22,7 @@
     "https://huggingface.co/lokCX/4x-Ultrasharp/resolve/main/4x-UltraSharp.pth"
   ],
   "controlnet": [
-    "https://huggingface.co/Patarapoom/model/resolve/main/controlnet-union-sdxl.safetensors",
+    "https://huggingface.co/Patarapoom/model/resolve/main/controlnet-union-sdxl_promax.safetensors",
     "https://huggingface.co/dim/Shakker-Labs_FLUX.1-dev-ControlNet-Union-Pro-fp8.safetensors/resolve/main/Shakker-Labs_FLUX.1-dev-ControlNet-Union-Pro-fp8.safetensors"
   ],
   "clip_vision": [
