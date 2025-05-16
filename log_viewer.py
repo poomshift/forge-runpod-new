@@ -52,6 +52,7 @@ HTML_TEMPLATE = '''
         :root {
             --primary: #2563eb;
             --success: #10b981;
+            --orange: #f59e0b;
             --bg: #f9fafb;
             --card: #fff;
             --text: #222;
@@ -112,8 +113,19 @@ HTML_TEMPLATE = '''
             color: #fff;
             border: none;
         }
+        .button.orange {
+            background: var(--orange);
+            color: #fff;
+            border: none;
+        }
         .button:active {
             background: #1e40af;
+        }
+        .button.success:active {
+            background: #059669;
+        }
+        .button.orange:active {
+            background: #d97706;
         }
         .section {
             margin-bottom: 32px;
@@ -643,7 +655,7 @@ HTML_TEMPLATE = '''
             <div class="title">Alchemist's ComfyUI</div>
             <div class="controls">
                 <a href="{{ proxy_url }}" target="_blank" class="button success">Open ComfyUI</a>
-                <button id="refresh-logs-btn" class="button">Refresh Logs</button>
+                <a href="{{ jupyter_url }}" target="_blank" class="button orange">Open JupyterLab</a>
                 <a href="/download/outputs" class="button">Download Outputs</a>
             </div>
         </header>
@@ -1260,17 +1272,23 @@ def index():
         # Format: https://{pod_id}-{port}.proxy.runpod.net
         pod_id = os.environ.get('RUNPOD_POD_ID', '')
         proxy_port = '8188'  # ComfyUI port
+        jupyter_port = '8888'  # JupyterLab port
         proxy_host = f"{pod_id}-{proxy_port}.proxy.runpod.net"
+        jupyter_host = f"{pod_id}-{jupyter_port}.proxy.runpod.net"
         proxy_url = f"https://{proxy_host}"
+        jupyter_url = f"https://{jupyter_host}"
     else:
         # For local development or other environments
         proxy_host = request.host.split(':')[0]
         proxy_port = '8188'
+        jupyter_port = '8888'
         proxy_url = f"http://{proxy_host}:{proxy_port}"
+        jupyter_url = f"http://{proxy_host}:{jupyter_port}"
     
     response = make_response(render_template_string(HTML_TEMPLATE, 
                                                     logs=logs, 
                                                     proxy_url=proxy_url,
+                                                    jupyter_url=jupyter_url,
                                                     is_runpod=is_runpod,
                                                     custom_nodes=custom_nodes,
                                                     models=models,
