@@ -10,10 +10,28 @@ import io
 import urllib.parse
 from flask_socketio import SocketIO, emit
 from datetime import datetime
+import logging
 
 # Initialize Flask and SocketIO with CORS
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Disable logging for frequent endpoints
+class EndpointFilter(logging.Filter):
+    def __init__(self, excluded_endpoints):
+        self.excluded_endpoints = excluded_endpoints
+        super().__init__()
+        
+    def filter(self, record):
+        if hasattr(record, 'args') and len(record.args) >= 3:
+            request_path = record.args[1]
+            for endpoint in self.excluded_endpoints:
+                if endpoint in request_path:
+                    return False
+        return True
+
+# Apply the filter to the Werkzeug logger
+logging.getLogger('werkzeug').addFilter(EndpointFilter(['/logs']))
 
 # Global variables to store logs
 log_buffer = []
@@ -402,6 +420,36 @@ HTML_TEMPLATE = '''
             });
         }
         
+        function downloadFromGoogleDrive() {
+            const url = document.getElementById('gdUrl').value;
+            const modelType = document.getElementById('gdModelType').value;
+            const filename = document.getElementById('gdFilename').value;
+            const statusDiv = document.getElementById('gdDownloadStatus');
+            
+            statusDiv.className = 'status-message';
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = 'Downloading...';
+            
+            fetch('/download/googledrive', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    url: url, 
+                    model_type: modelType,
+                    filename: filename
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                statusDiv.textContent = data.message;
+                statusDiv.className = data.success ? 'status-message status-success' : 'status-message status-error';
+            })
+            .catch(error => {
+                statusDiv.textContent = 'Error: ' + error.message;
+                statusDiv.className = 'status-message status-error';
+            });
+        }
+        
         function toggleCollapsible(element) {
             element.classList.toggle('open');
         }
@@ -442,7 +490,7 @@ HTML_TEMPLATE = '''
         </header>
         
         <div class="section">
-            <div class="section-title">Installation Info</div>
+            <div class="section-title">Pre-installed</div>
             
             <div class="collapsible">
                 <div class="collapsible-header">
@@ -537,6 +585,29 @@ HTML_TEMPLATE = '''
                     </select>
                     <button onclick="downloadFromHuggingFace()" class="button">Download Model</button>
                     <div id="hfDownloadStatus" class="status-message"></div>
+                </div>
+                <div class="downloader">
+                    <div style="font-weight:600;margin-bottom:8px;">Google Drive Downloader</div>
+                    <label for="gdUrl">Google Drive URL or ID</label>
+                    <input type="text" id="gdUrl" placeholder="https://drive.google.com/file/d/FILEID/view or just FILEID" required>
+                    <label for="gdModelType">Model Type</label>
+                    <select id="gdModelType">
+                        <option value="models/checkpoints">Checkpoints</option>
+                        <option value="models/vae">VAE</option>
+                        <option value="models/unet">UNet</option>
+                        <option value="models/diffusion_models">Diffusion Models</option>
+                        <option value="models/text_encoders">Text Encoders</option>
+                        <option value="models/loras">LORAs</option>
+                        <option value="models/upscale_models">Upscale Models</option>
+                        <option value="models/clip">CLIP</option>
+                        <option value="models/controlnet">ControlNet</option>
+                        <option value="models/clip_vision">CLIP Vision</option>
+                        <option value="models/ipadapter">IPAdapter</option>
+                    </select>
+                    <label for="gdFilename">Filename (Optional)</label>
+                    <input type="text" id="gdFilename" placeholder="Leave empty to use original filename">
+                    <button onclick="downloadFromGoogleDrive()" class="button">Download Model</button>
+                    <div id="gdDownloadStatus" class="status-message"></div>
                 </div>
             </div>
         </div>
@@ -827,6 +898,50 @@ def download_from_huggingface(url, model_type="loras"):
     except Exception as e:
         return {"success": False, "message": f"Error during download: {str(e)}"}
 
+def download_from_googledrive(url, model_type="loras", custom_filename=None):
+    """Download a model from Google Drive using gdown"""
+    # Handle model_type with or without 'models/' prefix
+    if model_type.startswith('models/'):
+        model_path = model_type
+    else:
+        model_path = os.path.join('models', model_type)
+    
+    model_dir = os.path.join('/workspace', 'ComfyUI', model_path)
+    os.makedirs(model_dir, exist_ok=True)
+    
+    try:
+        # Extract file ID from URL if it's a full URL
+        file_id = url
+        if 'drive.google.com' in url:
+            if '/file/d/' in url:
+                file_id = url.split('/file/d/')[1].split('/')[0]
+            elif 'id=' in url:
+                file_id = url.split('id=')[1].split('&')[0]
+        
+        # Set output path
+        output_path = os.path.join(model_dir, custom_filename) if custom_filename else model_dir
+        
+        # Check if gdown is installed, if not install it
+        try:
+            subprocess.run(['pip', 'show', 'gdown'], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError:
+            subprocess.run(['pip', 'install', 'gdown'], check=True)
+        
+        # Download the file
+        if custom_filename:
+            cmd = ['gdown', '--id', file_id, '-O', os.path.join(model_dir, custom_filename)]
+        else:
+            cmd = ['gdown', '--id', file_id, '-O', model_dir]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            return {"success": True, "message": "Download completed successfully"}
+        else:
+            return {"success": False, "message": f"Download failed: {result.stderr}"}
+    except Exception as e:
+        return {"success": False, "message": f"Error during download: {str(e)}"}
+
 @app.route('/api/custom-nodes')
 def api_custom_nodes():
     """API endpoint to get installed custom nodes"""
@@ -911,6 +1026,22 @@ def download_huggingface():
     result = download_from_huggingface(url, model_type)
     return jsonify(result)
 
+@app.route('/download/googledrive', methods=['POST'])
+def download_googledrive():
+    data = request.get_json()
+    url = data.get('url')
+    model_type = data.get('model_type', 'loras')
+    filename = data.get('filename')
+    
+    if not url:
+        return jsonify({"success": False, "message": "URL is required"}), 400
+    
+    # Use custom filename only if provided
+    custom_filename = filename if filename and filename.strip() else None
+    
+    result = download_from_googledrive(url, model_type, custom_filename)
+    return jsonify(result)
+
 @app.route('/')
 def index():
     logs = get_current_logs()
@@ -961,5 +1092,6 @@ if __name__ == '__main__':
                  host='0.0.0.0', 
                  port=8189, 
                  debug=False,
+                 log_output=False,
                  allow_unsafe_werkzeug=True)
 
