@@ -48,7 +48,7 @@ RUN jupyter notebook --generate-config && \
 RUN mkdir -p /workspace
 
 # Copy scripts to root
-COPY download_models.py update.sh start.sh log_viewer.py /
+COPY download_models.py update.sh start.sh log_viewer.py banner.jpg /
 
 
 # Set environment variables for configuration

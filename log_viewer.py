@@ -61,7 +61,7 @@ HTML_TEMPLATE = '''
             --radius: 10px;
             --shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
-        body {
+        body { 
             font-family: 'Inter', system-ui, sans-serif;
             background: var(--bg);
             color: var(--text);
@@ -377,7 +377,7 @@ HTML_TEMPLATE = '''
         let isUpdating = false;
         let autoScroll = true;
         let userScrolled = false;
-        
+
         function initializeWebSocket() {
             try {
                 socket = io();
@@ -494,17 +494,17 @@ HTML_TEMPLATE = '''
                     'Pragma': 'no-cache'
                 }
             })
-            .then(response => response.json())
-            .then(data => {
+                .then(response => response.json())
+                .then(data => {
                 if (data && data.logs) {
                     console.log('Latest logs received, updating display');
                     updateLogBoxSmoothly(data.logs);
-                } else {
+                    } else {
                     console.warn('No logs data in response');
                     document.getElementById('log-box').style.opacity = '1';
-                }
-            })
-            .catch(error => {
+                    }
+                })
+                .catch(error => {
                 console.error('Error fetching logs:', error);
                 document.getElementById('log-box').style.opacity = '1';
             });
@@ -515,7 +515,7 @@ HTML_TEMPLATE = '''
             console.log('Starting auto polling');
             setInterval(() => fetchLatestLogs(false), 3000);
         }
-        
+
         function downloadFromCivitai() {
             const url = document.getElementById('modelUrl').value;
             const apiKey = document.getElementById('apiKey').value;
@@ -539,7 +539,7 @@ HTML_TEMPLATE = '''
                 statusDiv.className = 'status-message status-error';
             });
         }
-        
+
         function downloadFromHuggingFace() {
             const url = document.getElementById('hfUrl').value;
             const modelType = document.getElementById('hfModelType').value;
@@ -576,8 +576,8 @@ HTML_TEMPLATE = '''
             fetch('/download/googledrive', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    url: url, 
+                body: JSON.stringify({
+                    url: url,
                     model_type: modelType,
                     filename: filename
                 })
@@ -653,7 +653,7 @@ HTML_TEMPLATE = '''
             <img src="/banner.jpg" alt="PromptAlchemist Banner">
         </a>
         <header>
-            <div class="title">Alchemist's ComfyUI</div>
+            <div class="title">ComfyUI Runpod By PromptAlchemist</div>
             <div class="controls">
                 <a href="{{ proxy_url }}" target="_blank" class="button success">Open ComfyUI</a>
                 <a href="{{ jupyter_url }}" target="_blank" class="button orange">Open JupyterLab</a>
@@ -661,7 +661,7 @@ HTML_TEMPLATE = '''
             </div>
         </header>
         
-        <div class="section">
+            <div class="section">
             <div class="section-title">Pre-installed</div>
             
             <div class="collapsible">
@@ -671,13 +671,13 @@ HTML_TEMPLATE = '''
                 </div>
                 <div class="collapsible-content">
                     <ul class="node-list">
-                        {% if custom_nodes %}
-                            {% for node in custom_nodes %}
+                    {% if custom_nodes %}
+                        {% for node in custom_nodes %}
                                 <li>{{ node.name }}</li>
-                            {% endfor %}
-                        {% else %}
+                        {% endfor %}
+                    {% else %}
                             <li>No custom nodes installed</li>
-                        {% endif %}
+                    {% endif %}
                     </ul>
                 </div>
             </div>
@@ -691,7 +691,7 @@ HTML_TEMPLATE = '''
                     {% if models %}
                         {% for category, items in models.items() %}
                             {% if items %}
-                                <div class="category-name">{{ category }} ({{ items|length }})</div>
+                                    <div class="category-name">{{ category }} ({{ items|length }})</div>
                                 <ul class="model-list">
                                     {% for model in items %}
                                         <li>{{ model.name }}</li>
@@ -703,10 +703,10 @@ HTML_TEMPLATE = '''
                         <p>No models found</p>
                     {% endif %}
                 </div>
+                </div>
             </div>
-        </div>
-        
-        <div class="section">
+            
+            <div class="section">
             <div class="section-title">Logs</div>
             <div class="log-controls">
                 <div class="auto-scroll-toggle">
@@ -715,11 +715,11 @@ HTML_TEMPLATE = '''
                         <input type="checkbox" id="auto-scroll-toggle" checked onchange="toggleAutoScroll()">
                         <span class="toggle-slider"></span>
                     </label>
-                </div>
+            </div>
             </div>
             <div id="log-box" class="log-box">{{ logs }}</div>
-        </div>
-        
+            </div>
+            
         <div class="section">
             <div class="section-title">Model Downloaders</div>
             <div class="downloaders">
@@ -731,12 +731,12 @@ HTML_TEMPLATE = '''
                 
                 <div id="civitai-downloader" class="downloader active">
                     <div style="font-weight:600;margin-bottom:8px;">Civitai Downloader</div>
-                    <label for="modelUrl">Model URL</label>
+                        <label for="modelUrl">Model URL</label>
                     <input type="url" id="modelUrl" placeholder="https://civitai.com/api/download/models/1399707" required>
-                    <label for="apiKey">API Key (Optional)</label>
-                    <input type="text" id="apiKey" placeholder="Your Civitai API key">
-                    <label for="modelType">Model Type</label>
-                    <select id="modelType">
+                        <label for="apiKey">API Key (Optional)</label>
+                        <input type="text" id="apiKey" placeholder="Your Civitai API key">
+                        <label for="modelType">Model Type</label>
+                        <select id="modelType">
                         <option value="models/checkpoints">Checkpoints</option>
                         <option value="models/vae">VAE</option>
                         <option value="models/unet">UNet</option>
@@ -748,17 +748,17 @@ HTML_TEMPLATE = '''
                         <option value="models/controlnet">ControlNet</option>
                         <option value="models/clip_vision">CLIP Vision</option>
                         <option value="models/ipadapter">IPAdapter</option>
-                    </select>
+                        </select>
                     <button onclick="downloadFromCivitai()" class="button">Download Model</button>
                     <div id="downloadStatus" class="status-message"></div>
                 </div>
                 
                 <div id="huggingface-downloader" class="downloader">
                     <div style="font-weight:600;margin-bottom:8px;">Hugging Face Downloader</div>
-                    <label for="hfUrl">Model URL</label>
+                        <label for="hfUrl">Model URL</label>
                     <input type="url" id="hfUrl" placeholder="https://huggingface.co/[user]/[repo]/resolve/main/model.safetensors" required>
-                    <label for="hfModelType">Model Type</label>
-                    <select id="hfModelType">
+                        <label for="hfModelType">Model Type</label>
+                        <select id="hfModelType">
                         <option value="models/checkpoints">Checkpoints</option>
                         <option value="models/vae">VAE</option>
                         <option value="models/unet">UNet</option>
@@ -770,7 +770,7 @@ HTML_TEMPLATE = '''
                         <option value="models/controlnet">ControlNet</option>
                         <option value="models/clip_vision">CLIP Vision</option>
                         <option value="models/ipadapter">IPAdapter</option>
-                    </select>
+                        </select>
                     <button onclick="downloadFromHuggingFace()" class="button">Download Model</button>
                     <div id="hfDownloadStatus" class="status-message"></div>
                 </div>
@@ -797,8 +797,8 @@ HTML_TEMPLATE = '''
                     <input type="text" id="gdFilename" placeholder="Leave empty to use original filename">
                     <button onclick="downloadFromGoogleDrive()" class="button">Download Model</button>
                     <div id="gdDownloadStatus" class="status-message"></div>
-                </div>
             </div>
+    </div>
         </div>
     </div>
 </body>
@@ -1256,12 +1256,20 @@ def download_googledrive():
 @app.route('/banner.jpg')
 def serve_banner():
     """Serve the banner image"""
-    banner_path = os.path.join(os.path.dirname(__file__), 'banner.jpg')
-    if os.path.exists(banner_path):
-        return send_file(banner_path, mimetype='image/jpeg')
-    else:
-        # Return a 404 if the banner doesn't exist
-        return "Banner not found", 404
+    # Check multiple possible locations for the banner
+    possible_paths = [
+        '/banner.jpg',  # Root directory
+        './banner.jpg',  # Current working directory
+        os.path.join(os.path.dirname(__file__), 'banner.jpg')  # Script directory
+    ]
+    
+    # Try each path
+    for banner_path in possible_paths:
+        if os.path.exists(banner_path):
+            return send_file(banner_path, mimetype='image/jpeg')
+    
+    # Return a 404 if the banner doesn't exist in any location
+    return "Banner not found", 404
 
 @app.route('/')
 def index():
