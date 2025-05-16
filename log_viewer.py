@@ -8,6 +8,8 @@ import platform
 import zipfile
 import io
 import urllib.parse
+import re
+import html
 from flask_socketio import SocketIO, emit
 from datetime import datetime
 import logging
@@ -125,43 +127,44 @@ HTML_TEMPLATE = '''
             align-items: center;
         }
         .log-box {
-            background: #f3f4f6;
+            background: #0f1116;
             border-radius: var(--radius);
             padding: 18px;
             font-family: 'Fira Mono', 'Consolas', monospace;
             font-size: 0.98rem;
-            color: #222;
+            color: #d3d7de;
             min-height: 220px;
             max-height: 350px;
             overflow-y: auto;
             border: 1px solid var(--border);
             transition: opacity 0.1s ease;
-            white-space: pre-wrap;
             line-height: 1.5;
         }
-        .log-box .progress {
-            color: #10b981;
-            font-weight: 500;
+        .log-line {
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin: 0;
+            padding: 1px 0;
         }
-        .log-box .info {
-            color: #3b82f6;
+        .log-error {
+            color: #ff5252;
         }
-        .log-box .warning {
-            color: #f59e0b;
+        .log-warning {
+            color: #ffab40;
         }
-        .log-box .error {
-            color: #ef4444;
+        .log-info {
+            color: #4fc3f7;
+        }
+        .log-timestamp {
+            color: #9e9e9e;
+            margin-right: 8px;
+            user-select: none;
         }
         .log-controls {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-end;
             align-items: center;
             margin-bottom: 8px;
-            gap: 8px;
-        }
-        .log-source-toggle {
-            display: flex;
-            align-items: center;
             gap: 8px;
         }
         .auto-scroll-toggle {
@@ -350,7 +353,6 @@ HTML_TEMPLATE = '''
         let isUpdating = false;
         let autoScroll = true;
         let userScrolled = false;
-        let useContainerLogs = false;
         
         function initializeWebSocket() {
             try {
@@ -369,60 +371,6 @@ HTML_TEMPLATE = '''
             } catch (e) {
                 console.error('WebSocket initialization failed:', e);
             }
-        }
-        
-        function processLogLine(line) {
-            // Replace ANSI color codes with HTML spans for styling
-            const colorMap = {
-                '0;30': 'color: #000000;', // Black
-                '0;31': 'color: #ef4444;', // Red
-                '0;32': 'color: #10b981;', // Green
-                '0;33': 'color: #f59e0b;', // Yellow
-                '0;34': 'color: #3b82f6;', // Blue
-                '0;35': 'color: #a855f7;', // Magenta
-                '0;36': 'color: #06b6d4;', // Cyan
-                '0;37': 'color: #9ca3af;', // White
-                '1;30': 'color: #4b5563; font-weight: bold;', // Bright Black
-                '1;31': 'color: #dc2626; font-weight: bold;', // Bright Red
-                '1;32': 'color: #059669; font-weight: bold;', // Bright Green
-                '1;33': 'color: #d97706; font-weight: bold;', // Bright Yellow
-                '1;34': 'color: #2563eb; font-weight: bold;', // Bright Blue
-                '1;35': 'color: #7c3aed; font-weight: bold;', // Bright Magenta
-                '1;36': 'color: #0891b2; font-weight: bold;', // Bright Cyan
-                '1;37': 'color: #f3f4f6; font-weight: bold;', // Bright White
-            };
-            
-            // Function to escape HTML special characters
-            function escapeHtml(text) {
-                return text
-                    .replace(/&/g, "&amp;")
-                    .replace(/</g, "&lt;")
-                    .replace(/>/g, "&gt;")
-                    .replace(/"/g, "&quot;")
-                    .replace(/'/g, "&#039;");
-            }
-            
-            // Escape HTML in the line
-            let processedLine = escapeHtml(line);
-            
-            // Process progress indicators (lines with percentages)
-            if (processedLine.match(/\d+%/) && processedLine.includes('|')) {
-                return `<span class="progress">${processedLine}</span>`;
-            }
-            
-            // Process INFO/WARNING/ERROR tags
-            if (processedLine.includes('INFO')) {
-                return `<span class="info">${processedLine}</span>`;
-            }
-            if (processedLine.includes('WARNING') || processedLine.includes('UserWarning')) {
-                return `<span class="warning">${processedLine}</span>`;
-            }
-            if (processedLine.includes('ERROR')) {
-                return `<span class="error">${processedLine}</span>`;
-            }
-            
-            // Return the processed line
-            return processedLine;
         }
         
         function updateLogBoxSmoothly(logs) {
@@ -446,12 +394,7 @@ HTML_TEMPLATE = '''
                     
                     // Use timeout to allow the opacity transition to happen
                     setTimeout(() => {
-                        // Process log lines with HTML formatting
-                        const processedLogs = logs.split('\n').map(line => {
-                            return processLogLine(line);
-                        }).join('\n');
-                        
-                        logBox.innerHTML = processedLogs;
+                        logBox.innerHTML = logs;
                         logBox.style.opacity = '1';
                         
                         // Maintain scroll position
@@ -515,20 +458,11 @@ HTML_TEMPLATE = '''
             });
         }
         
-        function toggleContainerLogs() {
-            useContainerLogs = !useContainerLogs;
-            forceRefreshLogs();
-            localStorage.setItem('useContainerLogs', useContainerLogs ? 'true' : 'false');
-            console.log('Container logs ' + (useContainerLogs ? 'enabled' : 'disabled'));
-        }
-        
         function fetchLatestLogs(isManualRefresh) {
             if (isUpdating && !isManualRefresh) return;
             
             console.log('Fetching latest logs...');
-            const endpoint = useContainerLogs ? '/container_logs' : '/logs';
-            
-            fetch(endpoint, { 
+            fetch('/logs', { 
                 method: 'GET',
                 cache: 'no-cache',
                 headers: {
@@ -661,13 +595,6 @@ HTML_TEMPLATE = '''
             // Initialize WebSocket and fallback polling
             initializeWebSocket();
             
-            // Set up container logs toggle from saved preference
-            const savedContainerLogs = localStorage.getItem('useContainerLogs');
-            if (savedContainerLogs !== null) {
-                useContainerLogs = savedContainerLogs === 'true';
-                document.getElementById('container-log-toggle').checked = useContainerLogs;
-            }
-            
             // Immediately fetch logs on page load
             fetchLatestLogs();
             
@@ -677,21 +604,14 @@ HTML_TEMPLATE = '''
             // Make the Refresh Logs button call our enhanced function
             document.getElementById('refresh-logs-btn').addEventListener('click', forceRefreshLogs);
             
-            // Initialize collapsible sections - fixed implementation
-            document.querySelectorAll('.collapsible').forEach(function(collapsible) {
-                const header = collapsible.querySelector('.collapsible-header');
+            // Initialize collapsible sections
+            document.querySelectorAll('.collapsible-header').forEach(header => {
                 header.addEventListener('click', function() {
-                    collapsible.classList.toggle('open');
+                    toggleCollapsible(this.parentElement);
                 });
             });
             
             // Initialize tabs - start with Civitai tab active
-            document.querySelectorAll('.tab').forEach(function(tab) {
-                tab.addEventListener('click', function() {
-                    const tabName = this.id.replace('-tab', '');
-                    switchTab(tabName);
-                });
-            });
             switchTab('civitai');
             
             // Set up auto-scroll toggle from saved preference
@@ -776,13 +696,6 @@ HTML_TEMPLATE = '''
         <div class="section">
             <div class="section-title">Logs</div>
             <div class="log-controls">
-                <div class="log-source-toggle">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="container-log-toggle" onchange="toggleContainerLogs()">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span>Show Container Logs</span>
-                </div>
                 <div class="auto-scroll-toggle">
                     <span>Auto-scroll</span>
                     <label class="toggle-switch">
@@ -970,17 +883,45 @@ def get_installed_models():
     return dict(sorted(models.items()))
 
 def get_current_logs():
-    """Get the current logs from the buffer"""
+    """Get the current logs from the buffer with Docker-style formatting"""
     with log_lock:
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        header = f"Log Viewer - Last {len(log_buffer)} lines (as of {timestamp})\n"
-        header += "=" * 80 + "\n\n"
+        header = f"<div class='log-line'><span class='log-timestamp'>{timestamp}</span><span class='log-info'>Log Viewer - Last {len(log_buffer)} lines</span></div>\n"
         
-        # Return log buffer with proper formatting
+        # Return log buffer with Docker-style formatting
         if log_buffer:
-            return header + '\n'.join(log_buffer)
+            formatted_logs = []
+            prev_line = None
+            for line in log_buffer:
+                if line != prev_line:  # Avoid duplicate consecutive lines
+                    # Format the log line with timestamp and color coding
+                    formatted_line = format_log_line(line)
+                    formatted_logs.append(formatted_line)
+                prev_line = line
+            return header + '\n'.join(formatted_logs)
         else:
-            return header + "No logs yet."
+            return header + "<div class='log-line'><span class='log-info'>No logs yet.</span></div>"
+
+def format_log_line(line):
+    """Format a log line to match Docker container log style"""
+    # Extract timestamp if present, or generate one
+    timestamp_match = re.search(r'^\[([\d\-\s:]+)\]', line)
+    if timestamp_match:
+        timestamp = timestamp_match.group(1)
+        content = line[len(timestamp_match.group(0)):].strip()
+    else:
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        content = line
+    
+    # Determine log level based on content
+    css_class = 'log-info'
+    if re.search(r'error|exception|fail|critical', content, re.IGNORECASE):
+        css_class = 'log-error'
+    elif re.search(r'warn|caution', content, re.IGNORECASE):
+        css_class = 'log-warning'
+    
+    # Format the line with HTML
+    return f"<div class='log-line'><span class='log-timestamp'>{timestamp}</span><span class='{css_class}'>{html.escape(content)}</span></div>"
 
 def tail_log_file():
     """Continuously tail the log file and update the buffer"""
@@ -989,63 +930,30 @@ def tail_log_file():
     if not os.path.exists(log_file):
         os.makedirs('logs', exist_ok=True)
         open(log_file, 'a').close()
-        print(f"Created new log file at {log_file}")
-    else:
-        print(f"Found existing log file at {log_file}")
     
     def follow(file_path):
         """Generator function that yields new lines in a file with proper handling of file rotation/truncation"""
-        print(f"Starting to follow log file: {file_path}")
         current_position = 0
-        current_inode = os.stat(file_path).st_ino if os.path.exists(file_path) else None
-        
         while True:
             try:
-                # Check if file exists
-                if not os.path.exists(file_path):
-                    print(f"Log file does not exist: {file_path}, waiting...")
-                    time.sleep(1)
-                    continue
-                
-                # Check if file has been rotated (different inode)
-                try:
-                    new_inode = os.stat(file_path).st_ino
-                    if current_inode is not None and new_inode != current_inode:
-                        print(f"Log file rotated (inode changed: {current_inode} -> {new_inode})")
-                        current_position = 0
-                        current_inode = new_inode
-                except Exception as e:
-                    print(f"Error checking file inode: {e}")
-                
-                # Open file and read new content
-                with open(file_path, 'r', encoding='utf-8', errors='replace') as file:
+                # Re-open the file on each iteration to detect file truncation or rotation
+                with open(file_path, 'r') as file:
                     # Check if file has been truncated
                     file_size = os.path.getsize(file_path)
                     if file_size < current_position:
-                        print(f"Log file truncated (size: {file_size}, previous position: {current_position})")
                         current_position = 0  # File was truncated, start from beginning
                     
                     # Seek to last position
                     file.seek(current_position)
                     
-                    # Read raw content to handle progress bars with \r
-                    raw_content = file.read(file_size - current_position)
-                    if raw_content:
+                    # Read new lines
+                    new_lines = file.readlines()
+                    if new_lines:
                         current_position = file.tell()
-                        
-                        # Split by both newlines and carriage returns to capture progress updates
-                        lines = []
-                        for part in raw_content.split('\n'):
-                            # Handle carriage returns which are used for progress bars
-                            cr_parts = part.split('\r')
-                            # Add all parts except empty ones
-                            lines.extend([p for p in cr_parts if p.strip()])
-                        
-                        print(f"Read {len(lines)} new content parts, position now at {current_position}")
-                        for line in lines:
+                        for line in new_lines:
                             yield line
                     else:
-                        # No new content, sleep before checking again
+                        # No new lines, sleep before checking again
                         time.sleep(0.1)
             except Exception as e:
                 print(f"Error following log file: {e}")
@@ -1053,57 +961,41 @@ def tail_log_file():
 
     try:
         # Load initial content
-        print("Loading initial log content...")
-        with open(log_file, 'r', encoding='utf-8', errors='replace') as file:
-            content = file.read()
-            
-            # Process content to handle both newlines and carriage returns
+        with open(log_file, 'r') as file:
+            content = file.readlines()
             processed_content = []
-            for part in content.split('\n'):
-                # Handle carriage returns which are used for progress bars
-                cr_parts = part.split('\r')
-                # Add all non-empty parts
-                processed_content.extend([p.strip() for p in cr_parts if p.strip()])
             
             # Keep only the last 500 lines and filter duplicates
-            processed_content = processed_content[-500:] if len(processed_content) > 500 else processed_content
-            
-            # Remove consecutive duplicates
-            filtered_content = []
+            content = content[-500:] if len(content) > 500 else content
             prev_line = None
-            for line in processed_content:
-                if line != prev_line:
-                    filtered_content.append(line)
-                prev_line = line
+            for line in content:
+                stripped_line = line.strip()
+                if stripped_line and stripped_line != prev_line:
+                    processed_content.append(stripped_line)
+                prev_line = stripped_line
             
             with log_lock:
                 log_buffer.clear()
-                log_buffer.extend(filtered_content)
+                log_buffer.extend(processed_content)
             
-            print(f"Loaded {len(filtered_content)} initial log lines")
             # Emit initial logs
             socketio.emit('logs', {'logs': get_current_logs()})
         
         # Start the continuous tail
-        print("Starting continuous log monitoring...")
         prev_line = None
         for line in follow(log_file):
             stripped_line = line.strip()
-            if stripped_line:  # Only process non-empty lines
+            if stripped_line and stripped_line != prev_line:  # Only process non-empty lines and not duplicates
                 with log_lock:
-                    # Only add if different from the last line (avoid duplicates from progress updates)
-                    if stripped_line != prev_line:
-                        log_buffer.append(stripped_line)
-                        if len(log_buffer) > 500:
-                            log_buffer.pop(0)
-                        # Emit new log line via WebSocket
-                        socketio.emit('new_log_line', {'line': stripped_line})
-                prev_line = stripped_line
+                    log_buffer.append(stripped_line)
+                    if len(log_buffer) > 500:
+                        log_buffer.pop(0)
+                # Emit new log line via WebSocket
+                socketio.emit('new_log_line', {'line': format_log_line(stripped_line)})
+            prev_line = stripped_line
     except Exception as e:
         print(f"Error tailing log file: {e}")
         time.sleep(5)
-        # Try to restart the log monitoring
-        tail_log_file()
 
 def create_output_zip():
     """Create a zip file of the ComfyUI output directory"""
@@ -1347,34 +1239,6 @@ def download_googledrive():
     
     result = download_from_googledrive(url, model_type, custom_filename)
     return jsonify(result)
-
-@app.route('/container_logs')
-def get_container_logs():
-    """Get logs directly from the container"""
-    try:
-        # Use subprocess to get the container logs
-        cmd = ["docker", "logs", "--tail", "500", "$(hostname)"]
-        
-        try:
-            # Try docker first
-            result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
-            logs = result.stdout
-        except:
-            # If docker fails, try reading from system journal
-            try:
-                result = subprocess.run(["journalctl", "-n", "500"], capture_output=True, text=True)
-                logs = result.stdout
-            except:
-                # Last resort: try to get logs from stdout/stderr files
-                logs = "Could not access container logs directly."
-        
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        header = f"Container Logs - Last 500 lines (as of {timestamp})\n"
-        header += "=" * 80 + "\n\n"
-        
-        return jsonify({'logs': header + logs})
-    except Exception as e:
-        return jsonify({'logs': f"Error fetching container logs: {str(e)}"})
 
 @app.route('/')
 def index():
