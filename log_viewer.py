@@ -609,14 +609,6 @@ HTML_TEMPLATE = '''
             // Start auto-polling
             startAutoPoll();
             
-            // Initialize collapsible sections
-            document.querySelectorAll('.collapsible-header').forEach(header => {
-                header.addEventListener('click', function() {
-                    const collapsible = this.parentElement;
-                    collapsible.classList.toggle('open');
-                });
-            });
-            
             // Initialize tabs - start with Civitai tab active
             switchTab('civitai');
             
@@ -657,8 +649,8 @@ HTML_TEMPLATE = '''
         <div class="section">
             <div class="section-title">Pre-installed</div>
             
-            <div class="collapsible" onclick="this.classList.toggle('open')">
-                <div class="collapsible-header">
+            <div class="collapsible">
+                <div class="collapsible-header" onclick="this.parentElement.classList.toggle('open')">
                     <span>Custom Nodes ({{ custom_nodes|length }})</span>
                     <span class="toggle-icon">▼</span>
                 </div>
@@ -675,8 +667,8 @@ HTML_TEMPLATE = '''
                 </div>
             </div>
             
-            <div class="collapsible" onclick="this.classList.toggle('open')">
-                <div class="collapsible-header">
+            <div class="collapsible">
+                <div class="collapsible-header" onclick="this.parentElement.classList.toggle('open')">
                     <span>Installed Models ({{ total_models }})</span>
                     <span class="toggle-icon">▼</span>
                 </div>
