@@ -86,7 +86,9 @@ async def get_config_async(config_path: str) -> Dict[str, Any]:
             async with aiohttp.ClientSession() as session:
                 async with session.get(config_path) as response:
                     response.raise_for_status()
-                    return await response.json()
+                    # Get text content and parse as JSON manually to handle GitHub's text/plain mimetype
+                    text_content = await response.text()
+                    return json.loads(text_content)
         else:
             # Load from local file
             with open(config_path, 'r') as f:
