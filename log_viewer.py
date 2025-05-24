@@ -1,4 +1,8 @@
-from flask import Flask, render_template_string, make_response, jsonify, send_file, request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, BackgroundTasks
+from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 import os
 import threading
 import time
@@ -10,13 +14,15 @@ import io
 import urllib.parse
 import re
 import html
-from flask_socketio import SocketIO, emit
 from datetime import datetime
 import logging
+import json
+import asyncio
+import concurrent.futures
+from typing import List, Dict, Any
 
-# Initialize Flask and SocketIO with CORS
-app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*")
+# Initialize FastAPI
+app = FastAPI(title="ComfyUI Log Viewer", description="ComfyUI Runpod Log Viewer and Model Downloader")
 
 # Disable logging for frequent endpoints
 class EndpointFilter(logging.Filter):
@@ -32,12 +38,35 @@ class EndpointFilter(logging.Filter):
                     return False
         return True
 
-# Apply the filter to the Werkzeug logger
-logging.getLogger('werkzeug').addFilter(EndpointFilter(['/logs']))
+# Apply the filter to the uvicorn logger
+logging.getLogger('uvicorn.access').addFilter(EndpointFilter(['/logs']))
 
-# Global variables to store logs
+# Global variables to store logs and WebSocket connections
 log_buffer = []
 log_lock = threading.Lock()
+websocket_connections: List[WebSocket] = []
+
+# Global thread executor for blocking operations
+thread_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+
+# Pydantic models for request/response validation
+class CivitaiDownloadRequest(BaseModel):
+    url: str
+    api_key: str = None
+    model_type: str = "loras"
+
+class HuggingFaceDownloadRequest(BaseModel):
+    url: str
+    model_type: str = "loras"
+
+class GoogleDriveDownloadRequest(BaseModel):
+    url: str
+    model_type: str = "loras"
+    filename: str = None
+
+class DownloadResponse(BaseModel):
+    success: bool
+    message: str
 
 # Add HTML_TEMPLATE before the routes
 HTML_TEMPLATE = '''
@@ -369,7 +398,6 @@ HTML_TEMPLATE = '''
             .downloaders { flex-direction: column; gap: 16px; }
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
         let socket;
         let lastLogHash = '';
@@ -377,21 +405,46 @@ HTML_TEMPLATE = '''
         let isUpdating = false;
         let autoScroll = true;
         let userScrolled = false;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
 
         function initializeWebSocket() {
             try {
-                socket = io();
-                socket.on('connect', function() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws`;
+                console.log('Connecting to WebSocket:', wsUrl);
+                
+                socket = new WebSocket(wsUrl);
+                
+                socket.onopen = function() {
                     console.log('WebSocket connected');
-                });
-                socket.on('new_log_line', function(data) {
-                    console.log('New log line received via WebSocket');
-                    fetchLatestLogs(false);
-                });
-                socket.on('logs', function(data) {
-                    console.log('Full logs received via WebSocket');
-                    updateLogBoxSmoothly(data.logs);
-                });
+                    reconnectAttempts = 0;
+                };
+                
+                socket.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'new_log_line') {
+                        console.log('New log line received via WebSocket');
+                        fetchLatestLogs(false);
+                    } else if (data.type === 'logs') {
+                        console.log('Full logs received via WebSocket');
+                        updateLogBoxSmoothly(data.logs);
+                    }
+                };
+                
+                socket.onclose = function() {
+                    console.log('WebSocket disconnected');
+                    // Attempt to reconnect
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        console.log(`Attempting to reconnect (${reconnectAttempts}/${maxReconnectAttempts})...`);
+                        setTimeout(() => initializeWebSocket(), 2000 * reconnectAttempts);
+                    }
+                };
+                
+                socket.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                };
             } catch (e) {
                 console.error('WebSocket initialization failed:', e);
             }
@@ -510,13 +563,13 @@ HTML_TEMPLATE = '''
             });
         }
         
-        // Auto-poll for logs every 3 seconds
+        // Auto-poll for logs every 3 seconds as fallback
         function startAutoPoll() {
             console.log('Starting auto polling');
             setInterval(() => fetchLatestLogs(false), 3000);
         }
 
-        function downloadFromCivitai() {
+        async function downloadFromCivitai() {
             const url = document.getElementById('modelUrl').value;
             const apiKey = document.getElementById('apiKey').value;
             const modelType = document.getElementById('modelType').value;
@@ -524,46 +577,46 @@ HTML_TEMPLATE = '''
             statusDiv.className = 'status-message';
             statusDiv.style.display = 'block';
             statusDiv.textContent = 'Downloading...';
-            fetch('/download/civitai', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: url, api_key: apiKey, model_type: modelType })
-            })
-            .then(response => response.json())
-            .then(data => {
+            
+            try {
+                const response = await fetch('/download/civitai', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url, api_key: apiKey, model_type: modelType })
+                });
+                const data = await response.json();
                 statusDiv.textContent = data.message;
                 statusDiv.className = data.success ? 'status-message status-success' : 'status-message status-error';
-            })
-            .catch(error => {
+            } catch (error) {
                 statusDiv.textContent = 'Error: ' + error.message;
                 statusDiv.className = 'status-message status-error';
-            });
+            }
         }
 
-        function downloadFromHuggingFace() {
+        async function downloadFromHuggingFace() {
             const url = document.getElementById('hfUrl').value;
             const modelType = document.getElementById('hfModelType').value;
             const statusDiv = document.getElementById('hfDownloadStatus');
             statusDiv.className = 'status-message';
             statusDiv.style.display = 'block';
             statusDiv.textContent = 'Downloading...';
-            fetch('/download/huggingface', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: url, model_type: modelType })
-            })
-            .then(response => response.json())
-            .then(data => {
+            
+            try {
+                const response = await fetch('/download/huggingface', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url, model_type: modelType })
+                });
+                const data = await response.json();
                 statusDiv.textContent = data.message;
                 statusDiv.className = data.success ? 'status-message status-success' : 'status-message status-error';
-            })
-            .catch(error => {
+            } catch (error) {
                 statusDiv.textContent = 'Error: ' + error.message;
                 statusDiv.className = 'status-message status-error';
-            });
+            }
         }
         
-        function downloadFromGoogleDrive() {
+        async function downloadFromGoogleDrive() {
             const url = document.getElementById('gdUrl').value;
             const modelType = document.getElementById('gdModelType').value;
             const filename = document.getElementById('gdFilename').value;
@@ -573,24 +626,23 @@ HTML_TEMPLATE = '''
             statusDiv.style.display = 'block';
             statusDiv.textContent = 'Downloading...';
             
-            fetch('/download/googledrive', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    url: url,
-                    model_type: modelType,
-                    filename: filename
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
+            try {
+                const response = await fetch('/download/googledrive', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: url,
+                        model_type: modelType,
+                        filename: filename
+                    })
+                });
+                const data = await response.json();
                 statusDiv.textContent = data.message;
                 statusDiv.className = data.success ? 'status-message status-success' : 'status-message status-error';
-            })
-            .catch(error => {
+            } catch (error) {
                 statusDiv.textContent = 'Error: ' + error.message;
                 statusDiv.className = 'status-message status-error';
-            });
+            }
         }
         
         function switchTab(tabName) {
@@ -618,7 +670,7 @@ HTML_TEMPLATE = '''
             // Immediately fetch logs on page load
             fetchLatestLogs();
             
-            // Start auto-polling
+            // Start auto-polling as fallback
             startAutoPoll();
             
             // Initialize tabs - start with Civitai tab active
@@ -940,6 +992,31 @@ def format_log_line(line):
     # Format the line with HTML
     return f"<div class='log-line'><span class='log-timestamp'>{timestamp}</span><span class='{css_class}'>{html.escape(content)}</span></div>"
 
+async def broadcast_to_websockets(message: dict):
+    """Send a message to all connected WebSocket clients"""
+    if websocket_connections:
+        disconnected = []
+        for websocket in websocket_connections:
+            try:
+                await websocket.send_text(json.dumps(message))
+            except:
+                disconnected.append(websocket)
+        
+        # Remove disconnected clients
+        for ws in disconnected:
+            websocket_connections.remove(ws)
+
+def sync_broadcast_to_websockets(message: dict):
+    """Synchronous wrapper for broadcasting to websockets from non-async context"""
+    try:
+        # Get the running event loop
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Schedule the coroutine to run in the event loop
+            asyncio.run_coroutine_threadsafe(broadcast_to_websockets(message), loop)
+    except Exception as e:
+        print(f"Error broadcasting to websockets: {e}")
+
 def tail_log_file():
     """Continuously tail the log file and update the buffer"""
     log_file = os.path.join('logs', 'comfyui.log')
@@ -995,8 +1072,11 @@ def tail_log_file():
                 log_buffer.clear()
                 log_buffer.extend(processed_content)
             
-            # Emit initial logs
-            socketio.emit('logs', {'logs': get_current_logs()})
+            # Emit initial logs via WebSocket (thread-safe)
+            sync_broadcast_to_websockets({
+                'type': 'logs', 
+                'logs': get_current_logs()
+            })
         
         # Start the continuous tail
         prev_line = None
@@ -1007,8 +1087,12 @@ def tail_log_file():
                     log_buffer.append(stripped_line)
                     if len(log_buffer) > 500:
                         log_buffer.pop(0)
-                # Emit new log line via WebSocket
-                socketio.emit('new_log_line', {'line': format_log_line(stripped_line)})
+                
+                # Emit new log line via WebSocket (thread-safe)
+                sync_broadcast_to_websockets({
+                    'type': 'new_log_line', 
+                    'line': format_log_line(stripped_line)
+                })
             prev_line = stripped_line
     except Exception as e:
         print(f"Error tailing log file: {e}")
@@ -1029,8 +1113,8 @@ def create_output_zip():
     memory_file.seek(0)
     return memory_file
 
-def download_from_civitai(url, api_key=None, model_type="loras"):
-    """Download a model from Civitai using aria2c"""
+async def download_from_civitai_async(url, api_key=None, model_type="loras"):
+    """Download a model from Civitai using aria2c (async)"""
     # Handle model_type with or without 'models/' prefix
     if model_type.startswith('models/'):
         model_path = model_type
@@ -1064,16 +1148,23 @@ def download_from_civitai(url, api_key=None, model_type="loras"):
     ]
     
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
+        # Use asyncio.create_subprocess_exec for non-blocking execution
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode == 0:
             return {"success": True, "message": "Download completed successfully"}
         else:
-            return {"success": False, "message": f"Download failed: {result.stderr}"}
+            return {"success": False, "message": f"Download failed: {stderr.decode()}"}
     except Exception as e:
         return {"success": False, "message": f"Error during download: {str(e)}"}
 
-def download_from_huggingface(url, model_type="loras"):
-    """Download a model from Hugging Face using aria2c"""
+async def download_from_huggingface_async(url, model_type="loras"):
+    """Download a model from Hugging Face using aria2c (async)"""
     # Handle model_type with or without 'models/' prefix
     if model_type.startswith('models/'):
         model_path = model_type
@@ -1105,16 +1196,22 @@ def download_from_huggingface(url, model_type="loras"):
             '-o', filename
         ]
         
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode == 0:
             return {"success": True, "message": "Download completed successfully"}
         else:
-            return {"success": False, "message": f"Download failed: {result.stderr}"}
+            return {"success": False, "message": f"Download failed: {stderr.decode()}"}
     except Exception as e:
         return {"success": False, "message": f"Error during download: {str(e)}"}
 
-def download_from_googledrive(url, model_type="loras", custom_filename=None):
-    """Download a model from Google Drive using gdown"""
+async def download_from_googledrive_async(url, model_type="loras", custom_filename=None):
+    """Download a model from Google Drive using gdown (async)"""
     # Handle model_type with or without 'models/' prefix
     if model_type.startswith('models/'):
         model_path = model_type
@@ -1133,14 +1230,23 @@ def download_from_googledrive(url, model_type="loras", custom_filename=None):
             elif 'id=' in url:
                 file_id = url.split('id=')[1].split('&')[0]
         
-        # Set output path
-        output_path = os.path.join(model_dir, custom_filename) if custom_filename else model_dir
-        
         # Check if gdown is installed, if not install it
         try:
-            subprocess.run(['pip', 'show', 'gdown'], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        except subprocess.CalledProcessError:
-            subprocess.run(['pip', 'install', 'gdown'], check=True)
+            process = await asyncio.create_subprocess_exec(
+                'pip', 'show', 'gdown',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await process.communicate()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, 'pip show gdown')
+        except:
+            process = await asyncio.create_subprocess_exec(
+                'pip', 'install', 'gdown',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await process.communicate()
         
         # Download the file
         if custom_filename:
@@ -1148,31 +1254,58 @@ def download_from_googledrive(url, model_type="loras", custom_filename=None):
         else:
             cmd = ['gdown', '--id', file_id, '-O', model_dir]
         
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
         
-        if result.returncode == 0:
+        if process.returncode == 0:
             return {"success": True, "message": "Download completed successfully"}
         else:
-            return {"success": False, "message": f"Download failed: {result.stderr}"}
+            return {"success": False, "message": f"Download failed: {stderr.decode()}"}
     except Exception as e:
         return {"success": False, "message": f"Error during download: {str(e)}"}
 
-@app.route('/api/custom-nodes')
-def api_custom_nodes():
+# WebSocket endpoint for real-time log updates
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    websocket_connections.append(websocket)
+    print(f"WebSocket connected. Total connections: {len(websocket_connections)}")
+    
+    try:
+        # Send initial logs
+        await websocket.send_text(json.dumps({
+            'type': 'logs',
+            'logs': get_current_logs()
+        }))
+        
+        # Keep the connection alive
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        websocket_connections.remove(websocket)
+        print(f"WebSocket disconnected. Remaining connections: {len(websocket_connections)}")
+
+# API Routes
+@app.get('/api/custom-nodes')
+async def api_custom_nodes():
     """API endpoint to get installed custom nodes"""
-    return jsonify(get_installed_custom_nodes())
+    return get_installed_custom_nodes()
 
-@app.route('/api/models')
-def api_models():
+@app.get('/api/models')
+async def api_models():
     """API endpoint to get installed models"""
-    return jsonify(get_installed_models())
+    return get_installed_models()
 
-@app.route('/logs')
-def get_logs():
-    return jsonify({'logs': get_current_logs()})
+@app.get('/logs')
+async def get_logs():
+    return {'logs': get_current_logs()}
 
-@app.route('/refresh_logs')
-def refresh_logs():
+@app.get('/refresh_logs')
+async def refresh_logs():
     """Force a refresh of the logs. Useful when log file has been externally updated."""
     try:
         with log_lock:
@@ -1197,68 +1330,54 @@ def refresh_logs():
                 with log_lock:
                     log_buffer.extend(processed_content)
         
-        socketio.emit('logs', {'logs': get_current_logs()})
-        return jsonify({'success': True, 'message': 'Logs refreshed successfully'})
+        await broadcast_to_websockets({'type': 'logs', 'logs': get_current_logs()})
+        return {'success': True, 'message': 'Logs refreshed successfully'}
     except Exception as e:
-        return jsonify({'success': False, 'message': f'Error refreshing logs: {str(e)}'})
+        return {'success': False, 'message': f'Error refreshing logs: {str(e)}'}
 
-@app.route('/download/outputs')
-def download_outputs():
+@app.get('/download/outputs')
+async def download_outputs():
     try:
         memory_file = create_output_zip()
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        return send_file(
-            memory_file,
-            mimetype='application/zip',
-            as_attachment=True,
-            download_name=f'comfyui_outputs_{timestamp}.zip'
+        
+        return StreamingResponse(
+            io.BytesIO(memory_file.read()),
+            media_type='application/zip',
+            headers={"Content-Disposition": f"attachment; filename=comfyui_outputs_{timestamp}.zip"}
         )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.route('/download/civitai', methods=['POST'])
-def download_civitai():
-    data = request.get_json()
-    url = data.get('url')
-    api_key = data.get('api_key')
-    model_type = data.get('model_type', 'loras')
+@app.post('/download/civitai', response_model=DownloadResponse)
+async def download_civitai_endpoint(request: CivitaiDownloadRequest):
+    if not request.url:
+        raise HTTPException(status_code=400, detail="URL is required")
     
-    if not url:
-        return jsonify({"success": False, "message": "URL is required"}), 400
-    
-    result = download_from_civitai(url, api_key, model_type)
-    return jsonify(result)
+    result = await download_from_civitai_async(request.url, request.api_key, request.model_type)
+    return DownloadResponse(**result)
 
-@app.route('/download/huggingface', methods=['POST'])
-def download_huggingface():
-    data = request.get_json()
-    url = data.get('url')
-    model_type = data.get('model_type', 'loras')
+@app.post('/download/huggingface', response_model=DownloadResponse)
+async def download_huggingface_endpoint(request: HuggingFaceDownloadRequest):
+    if not request.url:
+        raise HTTPException(status_code=400, detail="URL is required")
     
-    if not url:
-        return jsonify({"success": False, "message": "URL is required"}), 400
-    
-    result = download_from_huggingface(url, model_type)
-    return jsonify(result)
+    result = await download_from_huggingface_async(request.url, request.model_type)
+    return DownloadResponse(**result)
 
-@app.route('/download/googledrive', methods=['POST'])
-def download_googledrive():
-    data = request.get_json()
-    url = data.get('url')
-    model_type = data.get('model_type', 'loras')
-    filename = data.get('filename')
-    
-    if not url:
-        return jsonify({"success": False, "message": "URL is required"}), 400
+@app.post('/download/googledrive', response_model=DownloadResponse)
+async def download_googledrive_endpoint(request: GoogleDriveDownloadRequest):
+    if not request.url:
+        raise HTTPException(status_code=400, detail="URL is required")
     
     # Use custom filename only if provided
-    custom_filename = filename if filename and filename.strip() else None
+    custom_filename = request.filename if request.filename and request.filename.strip() else None
     
-    result = download_from_googledrive(url, model_type, custom_filename)
-    return jsonify(result)
+    result = await download_from_googledrive_async(request.url, request.model_type, custom_filename)
+    return DownloadResponse(**result)
 
-@app.route('/banner.jpg')
-def serve_banner():
+@app.get('/banner.jpg')
+async def serve_banner():
     """Serve the banner image"""
     # Check multiple possible locations for the banner
     possible_paths = [
@@ -1270,13 +1389,13 @@ def serve_banner():
     # Try each path
     for banner_path in possible_paths:
         if os.path.exists(banner_path):
-            return send_file(banner_path, mimetype='image/jpeg')
+            return FileResponse(banner_path, media_type='image/jpeg')
     
     # Return a 404 if the banner doesn't exist in any location
-    return "Banner not found", 404
+    raise HTTPException(status_code=404, detail="Banner not found")
 
-@app.route('/')
-def index():
+@app.get('/', response_class=HTMLResponse)
+async def index(request: Request):
     logs = get_current_logs()
     
     # Get installed custom nodes and models
@@ -1302,35 +1421,41 @@ def index():
         jupyter_url = f"https://{jupyter_host}"
     else:
         # For local development or other environments
-        proxy_host = request.host.split(':')[0]
+        proxy_host = request.url.hostname
         proxy_port = '8188'
         jupyter_port = '8888'
         proxy_url = f"http://{proxy_host}:{proxy_port}"
         jupyter_url = f"http://{proxy_host}:{jupyter_port}"
     
-    response = make_response(render_template_string(HTML_TEMPLATE, 
-                                                    logs=logs, 
-                                                    proxy_url=proxy_url,
-                                                    jupyter_url=jupyter_url,
-                                                    is_runpod=is_runpod,
-                                                    custom_nodes=custom_nodes,
-                                                    models=models,
-                                                    total_models=total_models))
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    return response
+    # Use Jinja2 template rendering
+    from jinja2 import Template
+    template = Template(HTML_TEMPLATE)
+    
+    html_content = template.render(
+        logs=logs,
+        proxy_url=proxy_url,
+        jupyter_url=jupyter_url,
+        is_runpod=is_runpod,
+        custom_nodes=custom_nodes,
+        models=models,
+        total_models=total_models
+    )
+    
+    return HTMLResponse(
+        content=html_content,
+        headers={
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        }
+    )
 
 if __name__ == '__main__':
     print("Starting log monitoring thread...")
     log_thread = threading.Thread(target=tail_log_file, daemon=True)
     log_thread.start()
     
-    print("Starting log viewer on port 8189...")
-    socketio.run(app, 
-                 host='0.0.0.0', 
-                 port=8189, 
-                 debug=False,
-                 log_output=False,
-                 allow_unsafe_werkzeug=True)
+    print("Starting FastAPI log viewer on port 8189...")
+    import uvicorn
+    uvicorn.run(app, host='0.0.0.0', port=8189, log_level="info")
 

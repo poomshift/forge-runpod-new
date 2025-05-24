@@ -32,8 +32,24 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Set working directory to root
 WORKDIR /
 
-# Install Jupyter with uv
-RUN uv pip install jupyter jupyterlab nodejs opencv-python requests runpod flask flask-socketio websocket-client psutil gputil
+# Install Jupyter and FastAPI dependencies with uv
+RUN uv pip install \
+    jupyter \
+    jupyterlab \
+    nodejs \
+    opencv-python \
+    requests \
+    aiohttp \
+    runpod \
+    fastapi \
+    "uvicorn[standard]" \
+    websockets \
+    pydantic \
+    jinja2 \
+    python-multipart \
+    websocket-client \
+    psutil \
+    gputil
 
 # Setup Jupyter configuration
 RUN jupyter notebook --generate-config && \

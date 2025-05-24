@@ -2,10 +2,12 @@
 import os
 import json
 import requests
-import subprocess
+import asyncio
+import aiohttp
 from pathlib import Path
 import logging
 import sys
+from typing import List, Dict, Any
 
 # Prevent duplicate logging
 logging.getLogger().handlers = []
@@ -24,56 +26,67 @@ stdout_handler = logging.StreamHandler(sys.stdout)
 stdout_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 logger.addHandler(stdout_handler)
 
-def download_file(url, output_path):
-    """Download a file using aria2c with optimized settings for faster downloads"""
-    filename = url.split('/')[-1]
-    logger.info(f"Starting download of {filename} from {url}")
-    
-    cmd = [
-        'aria2c',
-        '--console-log-level=warn',  # Reduce verbosity to warnings only
-        '-c',  # Continue downloading if partial file exists
-        '-x', '16',  # Increase concurrent connections to 16
-        '-s', '16',  # Split file into 16 parts
-        '-k', '1M',  # Minimum split size
-        '--file-allocation=none',  # Disable file allocation for faster start
-        '--optimize-concurrent-downloads=true',  # Optimize concurrent downloads
-        '--max-connection-per-server=16',  # Maximum connections per server
-        '--min-split-size=1M',  # Minimum split size
-        '--max-tries=5',  # Maximum retries
-        '--retry-wait=10',  # Wait between retries
-        '--connect-timeout=30',  # Connection timeout
-        '--timeout=600',  # Timeout for stalled downloads
-        '--summary-interval=30',  # Show summary every 30 seconds
-        url,
-        '-d', str(output_path),
-        '-o', filename  # Specify output filename
-    ]
-    
-    try:
-        logger.info(f"Running download command for {filename}")
-        # Run process with simple call instead of monitoring output
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            logger.info(f"Successfully downloaded {filename}")
-            return True
-        else:
-            error_msg = result.stderr or result.stdout
-            logger.error(f"Failed to download {filename}: {error_msg}")
-            return False
-    except Exception as e:
-        logger.error(f"Unexpected error while downloading {url}: {e}")
-        return False
+# Global semaphore to limit concurrent downloads
+download_semaphore = asyncio.Semaphore(5)
 
-def get_config(config_path):
-    """Load configuration from file or URL"""
+async def download_file(url: str, output_path: Path, semaphore: asyncio.Semaphore) -> bool:
+    """Download a file using aria2c with optimized settings for faster downloads (async)"""
+    async with semaphore:
+        filename = url.split('/')[-1]
+        logger.info(f"Starting download of {filename} from {url}")
+        
+        cmd = [
+            'aria2c',
+            '--console-log-level=warn',  # Reduce verbosity to warnings only
+            '-c',  # Continue downloading if partial file exists
+            '-x', '16',  # Increase concurrent connections to 16
+            '-s', '16',  # Split file into 16 parts
+            '-k', '1M',  # Minimum split size
+            '--file-allocation=none',  # Disable file allocation for faster start
+            '--optimize-concurrent-downloads=true',  # Optimize concurrent downloads
+            '--max-connection-per-server=16',  # Maximum connections per server
+            '--min-split-size=1M',  # Minimum split size
+            '--max-tries=5',  # Maximum retries
+            '--retry-wait=10',  # Wait between retries
+            '--connect-timeout=30',  # Connection timeout
+            '--timeout=600',  # Timeout for stalled downloads
+            '--summary-interval=30',  # Show summary every 30 seconds
+            url,
+            '-d', str(output_path),
+            '-o', filename  # Specify output filename
+        ]
+        
+        try:
+            logger.info(f"Running download command for {filename}")
+            # Use async subprocess for non-blocking execution
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode == 0:
+                logger.info(f"Successfully downloaded {filename}")
+                return True
+            else:
+                error_msg = stderr.decode() if stderr else stdout.decode()
+                logger.error(f"Failed to download {filename}: {error_msg}")
+                return False
+        except Exception as e:
+            logger.error(f"Unexpected error while downloading {url}: {e}")
+            return False
+
+async def get_config_async(config_path: str) -> Dict[str, Any]:
+    """Load configuration from file or URL (async)"""
     try:
         # Check if it's a URL
         if config_path.startswith(('http://', 'https://')):
-            response = requests.get(config_path)
-            response.raise_for_status()
-            return response.json()
+            async with aiohttp.ClientSession() as session:
+                async with session.get(config_path) as response:
+                    response.raise_for_status()
+                    return await response.json()
         else:
             # Load from local file
             with open(config_path, 'r') as f:
@@ -82,7 +95,7 @@ def get_config(config_path):
         logger.error(f"Failed to load config from {config_path}: {e}")
         return None
 
-def ensure_directories(base_path):
+def ensure_directories(base_path: Path) -> None:
     """Ensure all required directories exist"""
     directories = [
         'models/checkpoints',
@@ -106,7 +119,56 @@ def ensure_directories(base_path):
         full_path.mkdir(parents=True, exist_ok=True)
         logger.info(f"Ensured directory exists: {full_path}")
 
-def main():
+async def download_category_models(category: str, urls: List[str], base_path: Path, force_download: bool = False) -> None:
+    """Download all models in a category concurrently"""
+    if not isinstance(urls, list):
+        logger.warning(f"Skipping '{category}' as it's not a list of URLs")
+        return
+        
+    category_path = base_path / 'models' / category
+    category_path.mkdir(parents=True, exist_ok=True)
+    
+    # Prepare download tasks
+    download_tasks = []
+    
+    for url in urls:
+        # Extract filename from URL
+        filename = url.split('/')[-1]
+        
+        # Skip if file exists and force_download is False
+        if (category_path / filename).exists() and not force_download:
+            logger.info(f"Skipping {filename}, file already exists")
+            continue
+        
+        logger.info(f"Queuing download: {filename} to {category_path}")
+        task = download_file(url, category_path, download_semaphore)
+        download_tasks.append((task, filename))
+    
+    if not download_tasks:
+        logger.info(f"No new models to download in category: {category}")
+        return
+    
+    logger.info(f"Starting {len(download_tasks)} concurrent downloads for category: {category}")
+    
+    # Execute downloads concurrently with progress tracking
+    for i, (task, filename) in enumerate(download_tasks):
+        asyncio.create_task(track_download_progress(task, filename, i + 1, len(download_tasks), category))
+
+async def track_download_progress(task: asyncio.Task, filename: str, current: int, total: int, category: str) -> bool:
+    """Track download progress and log results"""
+    try:
+        result = await task
+        if result:
+            logger.info(f"✓ [{current}/{total}] Successfully downloaded {filename} ({category})")
+        else:
+            logger.error(f"✗ [{current}/{total}] Failed to download {filename} ({category})")
+        return result
+    except Exception as e:
+        logger.error(f"✗ [{current}/{total}] Error downloading {filename} ({category}): {e}")
+        return False
+
+async def main():
+    """Main async function to download models concurrently"""
     # Environment variables
     config_path = os.getenv('MODELS_CONFIG_URL', '/workspace/models_config.json')
     skip_download = os.getenv('SKIP_MODEL_DOWNLOAD', '').lower() == 'true'
@@ -171,7 +233,7 @@ def main():
             config_path = '/workspace/models_config.json'
     
     # Fetch configuration
-    config = get_config(config_path)
+    config = await get_config_async(config_path)
     if not config:
         logger.error("Failed to get configuration, exiting.")
         return
@@ -179,30 +241,28 @@ def main():
     # Log the number of models to download
     total_models = sum(len(urls) for urls in config.values() if isinstance(urls, list))
     logger.info(f"Found {total_models} models in configuration")
+    logger.info(f"Maximum concurrent downloads: 5")
     
-    # Download models from each category
+    # Create tasks for all categories
+    category_tasks = []
     for category, urls in config.items():
-        if not isinstance(urls, list):
-            logger.warning(f"Skipping '{category}' as it's not a list of URLs")
-            continue
-            
-        category_path = base_path / 'models' / category
-        category_path.mkdir(parents=True, exist_ok=True)
-        
-        for url in urls:
-            # Extract filename from URL
-            filename = url.split('/')[-1]
-            
-            # Skip if file exists and force_download is False
-            if (category_path / filename).exists() and not force_download:
-                logger.info(f"Skipping {filename}, file already exists")
-                continue
-            
-            logger.info(f"Downloading {filename} to {category_path}")
-            if download_file(url, category_path):
-                logger.info(f"Successfully downloaded {filename}")
-            else:
-                logger.error(f"Failed to download {filename}")
+        if isinstance(urls, list) and urls:
+            task = download_category_models(category, urls, base_path, force_download)
+            category_tasks.append(task)
+    
+    if category_tasks:
+        logger.info(f"Starting concurrent downloads for {len(category_tasks)} categories...")
+        # Wait for all categories to complete
+        await asyncio.gather(*category_tasks)
+        logger.info("All model downloads completed!")
+    else:
+        logger.info("No models to download.")
 
 if __name__ == '__main__':
-    main()
+    # Run the async main function
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Download process interrupted by user")
+    except Exception as e:
+        logger.error(f"Unexpected error in main: {e}")
