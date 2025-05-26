@@ -75,7 +75,7 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         # Send initial logs
         await websocket.send_text(
-            json.dumps({"type": "logs", "logs": get_current_logs()})
+            json.dumps({"type": "msg", "msg": "websocket connected"})
         )
 
         # Keep the connection alive

@@ -33,7 +33,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /
 
 # Install Jupyter and FastAPI dependencies with uv
-RUN uv pip install \
+RUN uv pip install --no-cache \
     jupyter \
     jupyterlab \
     nodejs \
@@ -60,6 +60,10 @@ RUN jupyter notebook --generate-config && \
     echo "c.NotebookApp.password = ''" >> /root/.jupyter/jupyter_notebook_config.py && \
     echo "c.NotebookApp.allow_origin = '*'" >> /root/.jupyter/jupyter_notebook_config.py && \
     echo "c.NotebookApp.allow_remote_access = True" >> /root/.jupyter/jupyter_notebook_config.py
+
+# clear cache to free up space 
+RUN uv cache clean 
+RUN RUN apt-get autoremove -y && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
 # Create workspace directory
 RUN mkdir -p /workspace
