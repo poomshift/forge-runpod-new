@@ -68,12 +68,6 @@ RUN mkdir -p /workspace
 WORKDIR /workspace
 COPY . .
 
-# Set environment variables for configuration
-ENV UPDATE_ON_START=false \
-    MODELS_CONFIG_URL="https://raw.githubusercontent.com/poomshift/comfyui-docker-new/refs/heads/main/models_config.json" \
-    SKIP_MODEL_DOWNLOAD=false \
-    FORCE_MODEL_DOWNLOAD=false
-
 # Make scripts executable
 RUN chmod +x *.sh ./download_models.py
 

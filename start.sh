@@ -1,6 +1,14 @@
 #!/bin/bash
 
+# default environment variable
+
+export UPDATE_ON_START=${UPDATE_ON_START:-false}
+export MODELS_CONFIG_URL=${MODELS_CONFIG_URL:-"https://raw.githubusercontent.com/poomshift/comfyui-docker-new/refs/heads/main/models_config.json"}
+export SKIP_MODEL_DOWNLOAD=${SKIP_MODEL_DOWNLOAD:-false}
+export FORCE_MODEL_DOWNLOAD=${FORCE_MODEL_DOWNLOAD:-false}
 export LOG_PATH=${LOG_PATH:-"/workspace/backend.log"}
+
+export TORCH_FORCE_WEIGHTS_ONLY_LOAD=1
 
 # Set strict error handling
 set -e
@@ -10,9 +18,9 @@ check_gpu() {
     local timeout=30
     local interval=2
     local elapsed=0
-    
+
     while [ $elapsed -lt $timeout ]; do
-        if nvidia-smi > /dev/null 2>&1; then
+        if nvidia-smi >/dev/null 2>&1; then
             echo "GPU detected and ready"
             return 0
         fi
@@ -20,7 +28,7 @@ check_gpu() {
         elapsed=$((elapsed + interval))
         echo "Waiting for GPU... ($elapsed/$timeout seconds)"
     done
-    
+
     echo "WARNING: GPU not detected after $timeout seconds"
     return 1
 }
@@ -34,7 +42,7 @@ reset_gpu() {
 
 # Install uv if not already installed
 install_uv() {
-    if ! command -v uv &> /dev/null; then
+    if ! command -v uv &>/dev/null; then
         echo "Installing uv package installer..."
         curl -LsSf https://astral.sh/uv/install.sh | sh
         export PATH="$HOME/.cargo/bin:$PATH"
@@ -61,7 +69,7 @@ clean_log_file() {
     if [ -f "$log_file" ] && [ -s "$log_file" ]; then
         echo "Cleaning log file to remove duplicates..."
         # Create a temporary file with unique lines only
-        awk '!seen[$0]++' "$log_file" > "${log_file}.tmp"
+        awk '!seen[$0]++' "$log_file" >"${log_file}.tmp"
         # Replace original with cleaned version
         mv "${log_file}.tmp" "$log_file"
     fi
@@ -96,7 +104,7 @@ check_internet() {
         sleep 10
         attempt=$((attempt + 1))
     done
-    
+
     echo "WARNING: No internet connection after $max_attempts attempts."
     return 1
 }
@@ -119,7 +127,7 @@ download_config() {
         sleep 10
         attempt=$((attempt + 1))
     done
-    
+
     echo "WARNING: Failed to download config after $max_attempts attempts."
     return 1
 }
@@ -144,7 +152,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
                 "clip_vision": [],
                 "ipadapter": [],
                 "style_models": []
-            }' > "$CONFIG_FILE"
+            }' >"$CONFIG_FILE"
         fi
     else
         echo "No MODELS_CONFIG_URL provided. Creating default configuration..." | tee -a /workspace/logs/comfyui.log
@@ -161,7 +169,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
             "clip_vision": [],
             "ipadapter": [],
             "style_models": []
-        }' > "$CONFIG_FILE"
+        }' >"$CONFIG_FILE"
     fi
 else
     echo "models_config.json already exists, using existing file" | tee -a /workspace/logs/comfyui.log
@@ -170,36 +178,36 @@ fi
 # Create dirs and download ComfyUI if it doesn't exist
 if [ ! -e "/workspace/ComfyUI/main.py" ]; then
     echo "ComfyUI not found or incomplete, installing..." | tee -a /workspace/logs/comfyui.log
-    
+
     # Remove incomplete directory if it exists
     rm -rf /workspace/ComfyUI
-    
+
     # Create workspace and log directories
     mkdir -p /workspace/logs
-    
+
     # Create log file
     touch /workspace/logs/comfyui.log
-    
+
     echo "Cloning ComfyUI..." | tee -a /workspace/logs/comfyui.log
     git clone --depth=1 https://github.com/comfyanonymous/ComfyUI /workspace/ComfyUI 2>&1 | tee -a /workspace/logs/comfyui.log
-    
+
     # Install dependencies
     cd /workspace/ComfyUI
     echo "Installing PyTorch dependencies..." | tee -a /workspace/logs/comfyui.log
     uv pip install --no-cache torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu124 2>&1 | tee -a /workspace/logs/comfyui.log
     echo "Installing ComfyUI requirements..." | tee -a /workspace/logs/comfyui.log
     uv pip install --no-cache -r requirements.txt 2>&1 | tee -a /workspace/logs/comfyui.log
-    
+
     # Create model directories
     mkdir -p /workspace/ComfyUI/models/{checkpoints,vae,unet,diffusion_models,text_encoders,loras,upscale_models,clip,controlnet,clip_vision,ipadapter,style_models}
     mkdir -p /workspace/ComfyUI/custom_nodes
     mkdir -p /workspace/ComfyUI/input
     mkdir -p /workspace/ComfyUI/output
-    
+
     # Clone custom nodes
     mkdir -p /workspace/ComfyUI/custom_nodes
     cd /workspace/ComfyUI/custom_nodes
-    
+
     echo "Cloning custom nodes..." | tee -a /workspace/logs/comfyui.log
     git clone --depth=1 https://github.com/ltdrdata/ComfyUI-Manager.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Manager | tee -a /workspace/logs/comfyui.log
     git clone --depth=1 https://github.com/ltdrdata/ComfyUI-Impact-Pack.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Impact-Pack | tee -a /workspace/logs/comfyui.log
@@ -219,13 +227,13 @@ if [ ! -e "/workspace/ComfyUI/main.py" ]; then
     git clone --depth=1 https://github.com/QijiTec/ComfyUI-RED-UNO.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-RED-UNO | tee -a /workspace/logs/comfyui.log
     git clone --depth=1 https://github.com/justUmen/Bjornulf_custom_nodes.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh Bjornulf_custom_nodes | tee -a /workspace/logs/comfyui.log
     git clone --depth=1 https://github.com/pythongosssss/ComfyUI-Custom-Scripts.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Custom-Scripts | tee -a /workspace/logs/comfyui.log
-    
+
     echo "Total size of custom nodes:" | tee -a /workspace/logs/comfyui.log && du -sh . | tee -a /workspace/logs/comfyui.log
-    
+
     # Install custom nodes requirements
     echo "Installing custom node requirements..." | tee -a /workspace/logs/comfyui.log
     find . -name "requirements.txt" -exec uv pip install --no-cache -r {} \; 2>&1 | tee -a /workspace/logs/comfyui.log
-    
+
     cd /workspace
 else
     echo "ComfyUI already exists, skipping clone and setup..." | tee -a /workspace/logs/comfyui.log
@@ -239,10 +247,6 @@ fi
 
 # Create log file if it doesn't exist
 touch /workspace/logs/comfyui.log
-
-# if [ "$UPDATE_ON_START" = "true" ]; then
-#     /update.sh
-# fi
 
 # Function to check if a model exists
 check_model() {
@@ -273,7 +277,7 @@ if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
                 missing_models=true
             fi
         fi
-    done < "$CONFIG_FILE"
+    done <"$CONFIG_FILE"
 
     # Download models if any are missing and downloads aren't skipped
     if [ "$missing_models" = true ] && [ "$SKIP_MODEL_DOWNLOAD" != "true" ]; then
@@ -312,6 +316,4 @@ COMFY_PID=$!
 echo "ComfyUI started with PID: $COMFY_PID" | tee -a /workspace/logs/comfyui.log
 
 # Wait for all processes
-wait 
-
-sleep infinity
+wait
