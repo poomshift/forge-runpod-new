@@ -278,7 +278,7 @@ if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
     # Download models if any are missing and downloads aren't skipped
     if [ "$missing_models" = true ] && [ "$SKIP_MODEL_DOWNLOAD" != "true" ]; then
         echo "Some required models are missing. Downloading models..." | tee -a /workspace/logs/comfyui.log
-        python ./download_models.py 2>&1 | tee -a /workspace/logs/comfyui.log
+        python ./download_models.py 2>&1 | tee -a $LOG_PATH
     else
         echo "All required models present or download skipped..." | tee -a /workspace/logs/comfyui.log
     fi
