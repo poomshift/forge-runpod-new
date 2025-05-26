@@ -13,7 +13,7 @@ logging.getLogger().handlers = []
 
 # Set up logging to file only, since stdout is already captured by tee in start.sh
 log_file_path = "./logs/comfyui.log"
-file_handler = logging.FileHandler(log_file_path)
+file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
 file_handler.setFormatter(
     logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 )
@@ -80,7 +80,7 @@ async def download_file(
                 logger.info(f"Successfully downloaded {filename}")
                 return True
             else:
-                error_msg = stderr.decode() if stderr else stdout.decode()
+                error_msg = stderr.decode("utf-8") if stderr else stdout.decode()
                 logger.error(f"Failed to download {filename}: {error_msg}")
                 return False
         except Exception as e:
@@ -135,11 +135,11 @@ def ensure_directories(base_path: Path) -> None:
 
 async def download_category_models(
     category: str, urls: List[str], base_path: Path, force_download: bool = False
-) -> None:
+):
     """Download all models in a category concurrently"""
     if not isinstance(urls, list):
         logger.warning(f"Skipping '{category}' as it's not a list of URLs")
-        return
+        return []
 
     category_path = base_path / "models" / category
     category_path.mkdir(parents=True, exist_ok=True)
@@ -162,19 +162,25 @@ async def download_category_models(
 
     if not download_tasks:
         logger.info(f"No new models to download in category: {category}")
-        return
+        return []
 
     logger.info(
         f"Starting {len(download_tasks)} concurrent downloads for category: {category}"
     )
 
     # Execute downloads concurrently with progress tracking
+    
+    tasks = []
+    
     for i, (task, filename) in enumerate(download_tasks):
-        asyncio.create_task(
+        t = asyncio.create_task(
             track_download_progress(
                 task, filename, i + 1, len(download_tasks), category
             )
         )
+        tasks.append(t)
+        
+    return tasks
 
 
 async def track_download_progress(
@@ -213,7 +219,7 @@ async def main():
 
     # Check if ComfyUI is fully set up
     comfyui_path = "./ComfyUI"
-    if not os.path.exists(os.path.join(comfyui_path, "main.py")):
+    if not os.path.exists(os.path.join(comfyui_path, "main.py")) and (not force_download):
         logger.info(
             "ComfyUI main.py not found. Skipping model downloads until ComfyUI is installed."
         )
@@ -283,8 +289,8 @@ async def main():
     category_tasks = []
     for category, urls in config.items():
         if isinstance(urls, list) and urls:
-            task = download_category_models(category, urls, base_path, force_download)
-            category_tasks.append(task)
+            tasks = await download_category_models(category, urls, base_path, force_download)
+            [category_tasks.append(task) for task in tasks]
 
     if category_tasks:
         logger.info(
