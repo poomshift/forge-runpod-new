@@ -235,7 +235,7 @@ if [ ! -e "/workspace/ComfyUI/main.py" ]; then
     find . -name "requirements.txt" -exec uv pip install --no-cache -r {} \; 2>&1 | tee -a /workspace/logs/comfyui.log
 
     mkdir -p /workspace/ComfyUI/user/default/ComfyUI-Manager
-    wget https://vjump-short-url.vercel.app/qmm6I -O /workspace/ComfyUI/user/default/ComfyUI-Manager/config.ini 2>&1 | tee -a /workspace/logs/comfyui.log
+    wget https://gist.githubusercontent.com/vjumpkung/b2993de3524b786673552f7de7490b08/raw/b7ae0b4fe0dad5c930ee290f600202f5a6c70fa8/uv_enabled_config.ini -O /workspace/ComfyUI/user/default/ComfyUI-Manager/config.ini 2>&1 | tee -a /workspace/logs/comfyui.log
 
     cd /workspace
 else
