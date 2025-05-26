@@ -278,7 +278,7 @@ if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
     # Download models if any are missing and downloads aren't skipped
     if [ "$missing_models" = true ] && [ "$SKIP_MODEL_DOWNLOAD" != "true" ]; then
         echo "Some required models are missing. Downloading models..." | tee -a /workspace/logs/comfyui.log
-        python3 ./download_models.py 2>&1 | tee -a /workspace/logs/comfyui.log
+        python ./download_models.py 2>&1 | tee -a /workspace/logs/comfyui.log
     else
         echo "All required models present or download skipped..." | tee -a /workspace/logs/comfyui.log
     fi
@@ -298,7 +298,7 @@ sleep 5
 # Start ComfyUI with full GPU access
 cd /workspace/ComfyUI
 # Clear any existing CUDA cache
-python3 -c "import torch; torch.cuda.empty_cache()" || true
+python -c "import torch; torch.cuda.empty_cache()" || true
 # Add a clear marker in the log file
 echo "====================================================================" | tee -a /workspace/logs/comfyui.log
 echo "============ ComfyUI STARTING $(date) ============" | tee -a /workspace/logs/comfyui.log
