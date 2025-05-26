@@ -234,7 +234,7 @@ if [ ! -e "/workspace/ComfyUI/main.py" ]; then
     echo "Installing custom node requirements..." | tee -a /workspace/logs/comfyui.log
     find . -name "requirements.txt" -exec uv pip install --no-cache -r {} \; 2>&1 | tee -a /workspace/logs/comfyui.log
 
-    mkdir -p /workspace/ComfyUI/ComfyUI/user/default/ComfyUI-Manager
+    mkdir -p /workspace/ComfyUI/user/default/ComfyUI-Manager
     wget https://vjump-short-url.vercel.app/qmm6I -O /workspace/ComfyUI/user/default/ComfyUI-Manager/config.ini 2>&1 | tee -a /workspace/logs/comfyui.log
 
     cd /workspace
