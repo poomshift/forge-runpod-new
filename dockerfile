@@ -63,7 +63,7 @@ RUN jupyter notebook --generate-config && \
 
 # clear cache to free up space 
 RUN uv cache clean 
-RUN RUN apt-get autoremove -y && apt-get clean -y && rm -rf /var/lib/apt/lists/*
+RUN apt-get autoremove -y && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
 # Create workspace directory
 RUN mkdir -p /workspace
@@ -73,7 +73,7 @@ WORKDIR /workspace
 COPY . .
 
 # Make scripts executable
-RUN chmod +x *.sh ./download_models.py
+RUN chmod +x *.sh
 
 # Expose ports
 EXPOSE 8188 8888 8189
