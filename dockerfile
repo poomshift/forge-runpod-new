@@ -80,11 +80,5 @@ RUN chmod +x *.sh ./download_models.py
 # Expose ports
 EXPOSE 8188 8888 8189
 
-WORKDIR /
-
-COPY start.sh .
-
-RUN chmod +x *.sh
-
 CMD ["./start.sh"]
 
