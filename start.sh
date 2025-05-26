@@ -73,7 +73,7 @@ clean_log_file
 # Start log viewer early to monitor the installation process
 cd /workspace
 # CUDA_VISIBLE_DEVICES="" python /log_viewer.py &
-CUDA_VISIBLE_DEVICES="" nohup python /log_viewer.py &>$LOG_PATH &
+CUDA_VISIBLE_DEVICES="" nohup python ./log_viewer.py &>$LOG_PATH &
 echo "Started log viewer on port 8189 - Monitor setup at http://localhost:8189"
 cd /
 

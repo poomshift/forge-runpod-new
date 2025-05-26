@@ -65,6 +65,7 @@ RUN jupyter notebook --generate-config && \
 RUN mkdir -p /workspace
 
 # Copy scripts to root
+WORKDIR /workspace
 COPY . .
 
 # Set environment variables for configuration
@@ -80,5 +81,8 @@ RUN chmod +x /*.sh /download_models.py
 EXPOSE 8188 8888 8189
 
 WORKDIR /
+
+COPY start.sh .
+
 CMD ["./start.sh"]
 
