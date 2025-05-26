@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.4.0-devel-ubuntu22.04 as builder
+FROM nvidia/cuda:12.4.0-base-ubuntu22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -49,7 +49,8 @@ RUN uv pip install \
     python-multipart \
     websocket-client \
     psutil \
-    gputil
+    gputil \
+    gdown
 
 # Setup Jupyter configuration
 RUN jupyter notebook --generate-config && \
@@ -64,8 +65,7 @@ RUN jupyter notebook --generate-config && \
 RUN mkdir -p /workspace
 
 # Copy scripts to root
-COPY download_models.py update.sh start.sh log_viewer.py banner.jpg /
-
+COPY . .
 
 # Set environment variables for configuration
 ENV UPDATE_ON_START=false \
