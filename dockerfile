@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.4.0-devel-ubuntu22.04 as builder
+FROM nvidia/cuda:12.4.0-base-ubuntu22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -32,8 +32,25 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Set working directory to root
 WORKDIR /
 
-# Install Jupyter with uv
-RUN uv pip install jupyter jupyterlab nodejs opencv-python requests runpod flask flask-socketio websocket-client psutil gputil
+# Install Jupyter and FastAPI dependencies with uv
+RUN uv pip install --no-cache \
+    jupyter \
+    jupyterlab \
+    nodejs \
+    opencv-python \
+    requests \
+    aiohttp \
+    runpod \
+    fastapi \
+    "uvicorn[standard]" \
+    websockets \
+    pydantic \
+    jinja2 \
+    python-multipart \
+    websocket-client \
+    psutil \
+    gputil \
+    gdown
 
 # Setup Jupyter configuration
 RUN jupyter notebook --generate-config && \
@@ -44,25 +61,22 @@ RUN jupyter notebook --generate-config && \
     echo "c.NotebookApp.allow_origin = '*'" >> /root/.jupyter/jupyter_notebook_config.py && \
     echo "c.NotebookApp.allow_remote_access = True" >> /root/.jupyter/jupyter_notebook_config.py
 
+# clear cache to free up space 
+RUN uv cache clean 
+RUN apt-get autoremove -y && apt-get clean -y && rm -rf /var/lib/apt/lists/*
+
 # Create workspace directory
 RUN mkdir -p /workspace
 
 # Copy scripts to root
-COPY download_models.py update.sh start.sh log_viewer.py banner.jpg /
-
-
-# Set environment variables for configuration
-ENV UPDATE_ON_START=false \
-    MODELS_CONFIG_URL="https://raw.githubusercontent.com/poomshift/comfyui-docker-new/refs/heads/main/models_config.json" \
-    SKIP_MODEL_DOWNLOAD=false \
-    FORCE_MODEL_DOWNLOAD=false
+WORKDIR /workspace
+COPY . .
 
 # Make scripts executable
-RUN chmod +x /*.sh /download_models.py
+RUN chmod +x *.sh
 
 # Expose ports
 EXPOSE 8188 8888 8189
 
-WORKDIR /
 CMD ["./start.sh"]
 
