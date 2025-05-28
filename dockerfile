@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.4.0-base-ubuntu22.04 AS builder
+FROM nvidia/cuda:12.4.1-base-ubuntu22.04 AS builder
 
 ARG PYTHON_VERSION="3.12"
 ARG CONTAINER_TIMEZONE=UTC 
@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN add-apt-repository ppa:deadsnakes/ppa && \
     apt-get update --yes && \
-    apt-get install --yes --no-install-recommends python3-pip "python${PYTHON_VERSION}" "python${PYTHON_VERSION}-dev" "python${PYTHON_VERSION}-venv" "python${PYTHON_VERSION}-tk" && \
+    apt-get install --yes --no-install-recommends python3-pip "python${PYTHON_VERSION}" "python${PYTHON_VERSION}-venv" && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
@@ -47,20 +47,14 @@ RUN uv pip install --no-cache \
     jupyter \
     jupyterlab \
     nodejs \
-    opencv-python \
     requests \
-    aiohttp \
-    runpod \
     fastapi \
-    "uvicorn[standard]" \
+    uvicorn \
     websockets \
     pydantic \
     jinja2 \
-    python-multipart \
-    websocket-client \
-    psutil \
-    gputil \
     gdown \
+    pip \
     "numpy<2"
 
 # Setup Jupyter configuration
