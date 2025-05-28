@@ -54,6 +54,7 @@ RUN uv pip install --no-cache \
     pydantic \
     jinja2 \
     gdown \
+    onnxruntime-gpu \
     pip \
     "numpy<2"
 
