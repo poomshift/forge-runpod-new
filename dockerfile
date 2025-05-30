@@ -1,4 +1,7 @@
-FROM nvidia/cuda:12.4.0-base-ubuntu22.04 AS builder
+FROM nvidia/cuda:12.4.1-base-ubuntu22.04 AS builder
+
+ARG PYTHON_VERSION="3.12"
+ARG CONTAINER_TIMEZONE=UTC 
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -8,10 +11,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Install system dependencies 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
     git \
-    python3.10 \
-    python3.10-venv \
-    python3-pip \
     build-essential \
     libgl1-mesa-dev \
     libglib2.0-0 \
@@ -20,13 +21,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     aria2 \
     rsync \
     curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+RUN add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get update --yes && \
+    apt-get install --yes --no-install-recommends python3-pip "python${PYTHON_VERSION}" "python${PYTHON_VERSION}-venv" && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
 
 # Install uv package installer
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Create and activate virtual environment
-RUN python3.10 -m venv /opt/venv
+RUN python${PYTHON_VERSION} -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Set working directory to root
@@ -37,20 +47,16 @@ RUN uv pip install --no-cache \
     jupyter \
     jupyterlab \
     nodejs \
-    opencv-python \
     requests \
-    aiohttp \
-    runpod \
     fastapi \
-    "uvicorn[standard]" \
+    uvicorn \
     websockets \
     pydantic \
     jinja2 \
-    python-multipart \
-    websocket-client \
-    psutil \
-    gputil \
-    gdown
+    gdown \
+    onnxruntime-gpu \
+    pip \
+    "numpy<2"
 
 # Setup Jupyter configuration
 RUN jupyter notebook --generate-config && \
