@@ -11,10 +11,10 @@ from typing import List, Dict, Any
 logging.getLogger().handlers = []
 
 # Set up logging to file only, since stdout is already captured by tee in start.sh
-log_file_path = "./logs/download.log"
+log_file_path = "/workspace/logs/comfyui.log"
 file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
 file_handler.setFormatter(
-    logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    logging.Formatter("%(message)s")
 )
 
 logger = logging.getLogger(__name__)
