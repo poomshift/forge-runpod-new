@@ -80,7 +80,12 @@ WORKDIR /notebooks
 COPY start.sh .
 COPY log_viewer.py . 
 COPY download_models.py .
-COPY ./constants ./dto ./static ./workers ./utils ./templates ./
+COPY ./constants/ ./constants/
+COPY ./dto/ ./dto/
+COPY ./static/ ./static/
+COPY ./workers/ ./workers/
+COPY ./utils/ ./utils/
+COPY ./templates/ ./templates/
 
 RUN ls -la
 
