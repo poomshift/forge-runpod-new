@@ -45,9 +45,9 @@ async def download_file(
             "--console-log-level=warn",  # Reduce verbosity to warnings only
             "-c",  # Continue downloading if partial file exists
             "-x",
-            "16",  # Increase concurrent connections to 16
+            "4",  # Increase concurrent connections to 4
             "-s",
-            "16",  # Split file into 16 parts
+            "4",  # Split file into 4 parts
             "-k",
             "1M",  # Minimum split size
             "--file-allocation=none",  # Disable file allocation for faster start
