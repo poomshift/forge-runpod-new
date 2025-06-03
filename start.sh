@@ -6,7 +6,7 @@ export UPDATE_ON_START=${UPDATE_ON_START:-"false"}
 export MODELS_CONFIG_URL=${MODELS_CONFIG_URL:-"https://raw.githubusercontent.com/poomshift/comfyui-docker-new/refs/heads/main/models_config.json"}
 export SKIP_MODEL_DOWNLOAD=${SKIP_MODEL_DOWNLOAD:-"false"}
 export FORCE_MODEL_DOWNLOAD=${FORCE_MODEL_DOWNLOAD:-"false"}
-export LOG_PATH=${LOG_PATH:-"/workspace/backend.log"}
+export LOG_PATH=${LOG_PATH:-"/notebooks/backend.log"}
 
 export TORCH_FORCE_WEIGHTS_ONLY_LOAD=1
 
@@ -79,9 +79,9 @@ clean_log_file() {
 clean_log_file
 
 # Start log viewer early to monitor the installation process
-cd /workspace
+cd /notebooks
 # CUDA_VISIBLE_DEVICES="" python /log_viewer.py &
-CUDA_VISIBLE_DEVICES="" nohup python ./log_viewer.py &>$LOG_PATH &
+CUDA_VISIBLE_DEVICES="" nohup python /notebooks/log_viewer.py &>$LOG_PATH &
 echo "Started log viewer on port 8189 - Monitor setup at http://localhost:8189"
 cd /
 

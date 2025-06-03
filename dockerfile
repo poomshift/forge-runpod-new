@@ -73,18 +73,22 @@ RUN apt-get autoremove -y && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
 # Create workspace directory
 RUN mkdir -p /workspace
-RUN mkdir -p /notebooks
+RUN mkdir -p /notebooks /notebooks/dto /notebooks/static /notebooks/utils /notebooks/workers
 
 # Copy scripts to root
 WORKDIR /notebooks
 COPY start.sh .
 COPY log_viewer.py . 
 COPY download_models.py .
-COPY ./workers/* .
-COPY ./utils/* .
-COPY ./static/* . 
-COPY ./dto/* . 
-COPY ./constants/* .
+COPY ./constants/* ./constants
+COPY ./dto/* ./dto
+COPY ./static/* ./static
+COPY ./workers/* ./workers
+COPY ./utils/* ./utils
+
+
+
+COPY ./templates/* ./templates
 
 COPY models_config.json /workspace
 
