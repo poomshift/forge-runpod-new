@@ -79,6 +79,7 @@ RUN mkdir -p /notebooks
 WORKDIR /notebooks
 COPY start.sh .
 COPY log_viewer.py . 
+COPY download_models.py .
 COPY ./workers/* .
 COPY ./utils/* .
 COPY ./static/* . 
