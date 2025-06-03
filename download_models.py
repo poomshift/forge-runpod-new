@@ -11,10 +11,10 @@ from typing import List, Dict, Any
 logging.getLogger().handlers = []
 
 # Set up logging to file only, since stdout is already captured by tee in start.sh
-log_file_path = "./logs/comfyui.log"
+log_file_path = "/workspace/logs/comfyui.log"
 file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
 file_handler.setFormatter(
-    logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    logging.Formatter("%(message)s")
 )
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ logger.addHandler(file_handler)
 # Also log to stdout for visibility
 stdout_handler = logging.StreamHandler(sys.stdout)
 stdout_handler.setFormatter(
-    logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    logging.Formatter("%(message)s")
 )
 logger.addHandler(stdout_handler)
 
@@ -45,9 +45,9 @@ async def download_file(
             "--console-log-level=warn",  # Reduce verbosity to warnings only
             "-c",  # Continue downloading if partial file exists
             "-x",
-            "16",  # Increase concurrent connections to 16
+            "4",  # Increase concurrent connections to 4
             "-s",
-            "16",  # Split file into 16 parts
+            "4",  # Split file into 4 parts
             "-k",
             "1M",  # Minimum split size
             "--file-allocation=none",  # Disable file allocation for faster start
@@ -207,7 +207,7 @@ async def track_download_progress(
 async def main():
     """Main async function to download models concurrently"""
     # Environment variables
-    config_path = os.getenv("MODELS_CONFIG_URL", "./models_config.json")
+    config_path = os.getenv("MODELS_CONFIG_URL", "/workspace/models_config.json")
     skip_download = os.getenv("SKIP_MODEL_DOWNLOAD", "").lower() == "true"
     force_download = os.getenv("FORCE_MODEL_DOWNLOAD", "").lower() == "true"
 
@@ -217,7 +217,7 @@ async def main():
         return
 
     # Check if ComfyUI is fully set up
-    comfyui_path = "./ComfyUI"
+    comfyui_path = "/workspace/ComfyUI"
     if not os.path.exists(os.path.join(comfyui_path, "main.py")) and (not force_download):
         logger.info(
             "ComfyUI main.py not found. Skipping model downloads until ComfyUI is installed."
@@ -239,7 +239,7 @@ async def main():
             return
 
     # Base path for ComfyUI
-    base_path = Path("./ComfyUI")
+    base_path = Path("/workspace/ComfyUI")
 
     # Ensure directories exist
     ensure_directories(base_path)
@@ -269,9 +269,9 @@ async def main():
                 "style_models": [],
             }
             logger.info("Using default empty configuration")
-            with open("./models_config.json", "w") as f:
+            with open("/workspace/models_config.json", "w") as f:
                 json.dump(default_config, f, indent=4)
-            config_path = "./models_config.json"
+            config_path = "/workspace/models_config.json"
 
     # Fetch configuration
     config = await get_config_async(config_path)
