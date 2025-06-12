@@ -15,7 +15,6 @@
       "https://huggingface.co/Patarapoom/model/resolve/main/ae.safetensors"
   ],
   "ESRGAN": [
-      "https://huggingface.co/uwg/upscaler/resolve/main/ESRGAN/8x_NMKD-Superscale_150000_G.pth",
       "https://huggingface.co/lokCX/4x-Ultrasharp/resolve/main/4x-UltraSharp.pth"
   ],
   "text_encoder": [
