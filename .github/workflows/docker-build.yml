@@ -40,4 +40,4 @@ jobs:
             promptalchemist/forge-docker-new:latest
             promptalchemist/forge-docker-new:${{ steps.date.outputs.date }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max 
+          cache-to: type=gha,mode=max  
