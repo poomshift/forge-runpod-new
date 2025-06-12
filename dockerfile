@@ -119,7 +119,7 @@ RUN pip install -r requirements.txt
 WORKDIR /notebooks
 
 # Expose Forge's default port
-EXPOSE 7860
+EXPOSE 7860 
 
 CMD ["./start.sh"]
 
