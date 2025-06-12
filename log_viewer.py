@@ -118,7 +118,7 @@ async def download_outputs():
             io.BytesIO(memory_file.read()),
             media_type="application/zip",
             headers={
-                "Content-Disposition": f"attachment; filename=comfyui_outputs_{timestamp}.zip"
+                "Content-Disposition": f"attachment; filename=forge_outputs_{timestamp}.zip"
             },
         )
     except Exception as e:

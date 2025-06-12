@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rsync \
     curl \
     ca-certificates \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 RUN add-apt-repository ppa:deadsnakes/ppa && \

@@ -194,28 +194,36 @@ download_model() {
 CONFIG_FILE="/workspace/models_config.json"
 if [ -f "$CONFIG_FILE" ]; then
     echo "Processing models_config.json for Forge..."
+    
+    # Function to extract URLs from JSON array using bash
+    extract_urls() {
+        local category=$1
+        grep -o "\"$category\"[[:space:]]*:[[:space:]]*\[[^]]*\]" "$CONFIG_FILE" | \
+        grep -o 'https://[^"]*' || true
+    }
+    
     # Stable-diffusion (checkpoints)
-    for url in $(jq -r '."Stable-diffusion"[]' "$CONFIG_FILE"); do
+    for url in $(extract_urls "Stable-diffusion"); do
         download_model "$url" "$FORGE_PATH/models/Stable-diffusion"
     done
     # VAE
-    for url in $(jq -r '.VAE[]' "$CONFIG_FILE"); do
+    for url in $(extract_urls "VAE"); do
         download_model "$url" "$FORGE_PATH/models/VAE"
     done
     # Lora
-    for url in $(jq -r '.Lora[]' "$CONFIG_FILE"); do
+    for url in $(extract_urls "Lora"); do
         download_model "$url" "$FORGE_PATH/models/Lora"
     done
     # ESRGAN (upscale models)
-    for url in $(jq -r '.ESRGAN[]' "$CONFIG_FILE"); do
+    for url in $(extract_urls "ESRGAN"); do
         download_model "$url" "$FORGE_PATH/models/ESRGAN"
     done
     # ControlNet
-    for url in $(jq -r '.ControlNet[]' "$CONFIG_FILE"); do
+    for url in $(extract_urls "ControlNet"); do
         download_model "$url" "$FORGE_PATH/models/ControlNet"
     done
     # text_encoder
-    for url in $(jq -r '.text_encoder[]' "$CONFIG_FILE"); do
+    for url in $(extract_urls "text_encoder"); do
         download_model "$url" "$FORGE_PATH/models/text_encoder"
     done
 fi
