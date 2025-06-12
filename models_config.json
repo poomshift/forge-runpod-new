@@ -1,9 +1,6 @@
 {
   "Lora": [
       "https://huggingface.co/Patarapoom/model/resolve/main/MooDeng-baby-hippo-flux.safetensors",
-      "https://huggingface.co/Patarapoom/model/resolve/main/skooldy-v4-flux.safetensors",
-      "https://huggingface.co/Patarapoom/model/resolve/main/skooldy-v5-flux.safetensors",
-      "https://huggingface.co/Patarapoom/model/resolve/main/skooldio-tshirt-flux-v2.safetensors",
       "https://huggingface.co/Patarapoom/model/resolve/main/nongnoey_flux.safetensors",
       "https://huggingface.co/Patarapoom/forge/resolve/main/Sabaithai_Thaitraditionaldress_flux.safetensors",
       "https://huggingface.co/Patarapoom/forge/resolve/main/lactasoy_v2_2500steps.safetensors",
