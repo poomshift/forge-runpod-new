@@ -112,9 +112,9 @@ RUN git clone --depth=1 https://github.com/Gourieff/sd-webui-reactor-sfw /worksp
 
 # Install extension requirements
 WORKDIR /workspace/stable-diffusion-webui-forge/extensions/sd-webui-infinite-image-browsing
-RUN uv pip install -r requirements.txt
+RUN pip install -r requirements.txt
 WORKDIR /workspace/stable-diffusion-webui-forge/extensions/sd-webui-reactor-sfw
-RUN uv pip install -r requirements.txt
+RUN pip install -r requirements.txt
 
 WORKDIR /notebooks
 
