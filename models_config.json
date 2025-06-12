@@ -22,8 +22,8 @@
       "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors"
   ],
   "Stable-diffusion": [
-      "https://huggingface.co/Patarapoom/model/resolve/main/juggernautXL_juggXIByRundiffusion.safetensors",
-      "https://huggingface.co/Kijai/flux-fp8/resolve/main/flux1-dev-fp8.safetensors"
+      "https://huggingface.co/Kijai/flux-fp8/resolve/main/flux1-dev-fp8.safetensors",  
+      "https://huggingface.co/Patarapoom/model/resolve/main/juggernautXL_juggXIByRundiffusion.safetensors"
   ],
   "ControlNet": [
     "https://huggingface.co/Patarapoom/CnetXL/resolve/main/controlnet-canny-sdxl.safetensors",
