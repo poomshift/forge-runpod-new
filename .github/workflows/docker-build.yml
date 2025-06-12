@@ -40,4 +40,4 @@ jobs:
             promptalchemist/forge-docker-runpod:latest
             promptalchemist/forge-docker-runpod:${{ steps.date.outputs.date }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max 
+          cache-to: type=gha,mode=max  
