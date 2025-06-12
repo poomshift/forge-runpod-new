@@ -39,7 +39,7 @@ def get_installed_custom_nodes():
             custom_nodes.append(
                 {
                     "name": repo_name_clean,
-                    "path": f"/workspace/ComfyUI/custom_nodes/{repo_name_clean}",
+                    "path": f"/workspace/stable-diffusion-webui-forge/extensions/{repo_name_clean}",
                     "version": "Installed",
                     "url": repo_url,
                 }

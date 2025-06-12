@@ -3,7 +3,7 @@
 # default environment variable
 
 export UPDATE_ON_START=${UPDATE_ON_START:-"false"}
-export MODELS_CONFIG_URL=${MODELS_CONFIG_URL:-"https://raw.githubusercontent.com/poomshift/comfyui-docker-new/refs/heads/main/models_config.json"}
+export MODELS_CONFIG_URL=${MODELS_CONFIG_URL:-"https://raw.githubusercontent.com/poomshift/forge-docker-new/refs/heads/main/models_config.json"}
 export SKIP_MODEL_DOWNLOAD=${SKIP_MODEL_DOWNLOAD:-"false"}
 export FORCE_MODEL_DOWNLOAD=${FORCE_MODEL_DOWNLOAD:-"false"}
 export LOG_PATH=${LOG_PATH:-"/notebooks/backend.log"}
@@ -58,19 +58,16 @@ export CUDA_LAUNCH_BLOCKING=1
 
 # Create necessary directories
 mkdir -p /workspace/logs
-mkdir -p /workspace/ComfyUI
 
 # Create log file if it doesn't exist
-touch /workspace/logs/comfyui.log
+touch /workspace/logs/forge.log
 
 # Clean up the log file to remove any duplicate lines
 clean_log_file() {
-    local log_file="/workspace/logs/comfyui.log"
+    local log_file="/workspace/logs/forge.log"
     if [ -f "$log_file" ] && [ -s "$log_file" ]; then
         echo "Cleaning log file to remove duplicates..."
-        # Create a temporary file with unique lines only
         awk '!seen[$0]++' "$log_file" >"${log_file}.tmp"
-        # Replace original with cleaned version
         mv "${log_file}.tmp" "$log_file"
     fi
 }
@@ -135,166 +132,93 @@ download_config() {
 # Check for models_config.json and download it first thing
 CONFIG_FILE="/workspace/models_config.json"
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Creating models_config.json..." | tee -a /workspace/logs/comfyui.log
+    echo "Creating models_config.json..." | tee -a /workspace/logs/forge.log
     if [ -n "$MODELS_CONFIG_URL" ]; then
         if ! download_config "$MODELS_CONFIG_URL" "$CONFIG_FILE"; then
-            echo "Failed to download from URL. Creating default config..." | tee -a /workspace/logs/comfyui.log
+            echo "Failed to download from URL. Creating default config..." | tee -a /workspace/logs/forge.log
             echo '{
-                "checkpoints": [],
-                "vae": [],
-                "unet": [],
-                "diffusion_models": [],
-                "text_encoders": [],
-                "loras": [],
-                "upscale_models": [],
-                "clip": [],
-                "controlnet": [],
-                "clip_vision": [],
-                "ipadapter": [],
-                "style_models": []
+                "Stable-diffusion": [],
+                "VAE": [],
+                "Lora": [],
+                "ESRGAN": [],
+                "ControlNet": [],
+                "text_encoder": []
             }' >"$CONFIG_FILE"
         fi
     else
-        echo "No MODELS_CONFIG_URL provided. Creating default configuration..." | tee -a /workspace/logs/comfyui.log
+        echo "No MODELS_CONFIG_URL provided. Creating default configuration..." | tee -a /workspace/logs/forge.log
         echo '{
-            "checkpoints": [],
-            "vae": [],
-            "unet": [],
-            "diffusion_models": [],
-            "text_encoders": [],
-            "loras": [],
-            "upscale_models": [],
-            "clip": [],
-            "controlnet": [],
-            "clip_vision": [],
-            "ipadapter": [],
-            "style_models": []
+            "Stable-diffusion": [],
+            "VAE": [],
+            "Lora": [],
+            "ESRGAN": [],
+            "ControlNet": [],
+            "text_encoder": []
         }' >"$CONFIG_FILE"
     fi
 else
-    echo "models_config.json already exists, using existing file" | tee -a /workspace/logs/comfyui.log
+    echo "models_config.json already exists, using existing file" | tee -a /workspace/logs/forge.log
 fi
 
-# Create dirs and download ComfyUI if it doesn't exist
-if [ ! -e "/workspace/ComfyUI/main.py" ]; then
-    echo "ComfyUI not found or incomplete, installing..." | tee -a /workspace/logs/comfyui.log
+# Set Forge repo path
+FORGE_PATH="/workspace/stable-diffusion-webui-forge"
 
-    # Remove incomplete directory if it exists
-    rm -rf /workspace/ComfyUI
-
-    # Create workspace and log directories
-    mkdir -p /workspace/logs
-
-    # Create log file
-    touch /workspace/logs/comfyui.log
-
-    echo "Cloning ComfyUI..." | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/comfyanonymous/ComfyUI /workspace/ComfyUI 2>&1 | tee -a /workspace/logs/comfyui.log
-
-    # Install dependencies
-    cd /workspace/ComfyUI
-    echo "Installing PyTorch dependencies..." | tee -a /workspace/logs/comfyui.log
-    uv pip install --no-cache torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu124 2>&1 | tee -a /workspace/logs/comfyui.log
-    echo "Installing ComfyUI requirements..." | tee -a /workspace/logs/comfyui.log
-    uv pip install --no-cache -r requirements.txt 2>&1 | tee -a /workspace/logs/comfyui.log
-
-    # Create model directories
-    mkdir -p /workspace/ComfyUI/models/{checkpoints,vae,unet,diffusion_models,text_encoders,loras,upscale_models,clip,controlnet,clip_vision,ipadapter,style_models}
-    mkdir -p /workspace/ComfyUI/custom_nodes
-    mkdir -p /workspace/ComfyUI/input
-    mkdir -p /workspace/ComfyUI/output
-
-    # Clone custom nodes
-    mkdir -p /workspace/ComfyUI/custom_nodes
-    cd /workspace/ComfyUI/custom_nodes
-
-    echo "Cloning custom nodes..." | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/ltdrdata/ComfyUI-Manager.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Manager | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/ltdrdata/ComfyUI-Impact-Pack.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Impact-Pack | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/cubiq/ComfyUI_essentials.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI_essentials | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/ltdrdata/ComfyUI-Inspire-Pack.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Inspire-Pack | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/Fannovel16/comfyui_controlnet_aux.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh comfyui_controlnet_aux | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/nicofdga/DZ-FaceDetailer.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh DZ-FaceDetailer | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/cubiq/ComfyUI_IPAdapter_plus.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI_IPAdapter_plus | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/ssitu/ComfyUI_UltimateSDUpscale.git --recursive 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI_UltimateSDUpscale | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-VideoHelperSuite | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/Acly/comfyui-inpaint-nodes.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh comfyui-inpaint-nodes | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/kijai/ComfyUI-KJNodes.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-KJNodes | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/city96/ComfyUI-GGUF.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-GGUF | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/rgthree/rgthree-comfy.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh rgthree-comfy | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/AlekPet/ComfyUI_Custom_Nodes_AlekPet.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI_Custom_Nodes_AlekPet | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/CY-CHENYUE/ComfyUI-Gemini-API.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Gemini-API | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/QijiTec/ComfyUI-RED-UNO.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-RED-UNO | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/justUmen/Bjornulf_custom_nodes.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh Bjornulf_custom_nodes | tee -a /workspace/logs/comfyui.log
-    git clone --depth=1 https://github.com/pythongosssss/ComfyUI-Custom-Scripts.git 2>&1 | tee -a /workspace/logs/comfyui.log && du -sh ComfyUI-Custom-Scripts | tee -a /workspace/logs/comfyui.log
-
-    echo "Total size of custom nodes:" | tee -a /workspace/logs/comfyui.log && du -sh . | tee -a /workspace/logs/comfyui.log
-
-    # Install custom nodes requirements
-    echo "Installing custom node requirements..." | tee -a /workspace/logs/comfyui.log
-    find . -name "requirements.txt" -exec uv pip install --no-cache -r {} \; 2>&1 | tee -a /workspace/logs/comfyui.log
-
-    mkdir -p /workspace/ComfyUI/user/default/ComfyUI-Manager
-    wget https://gist.githubusercontent.com/vjumpkung/b2993de3524b786673552f7de7490b08/raw/b7ae0b4fe0dad5c930ee290f600202f5a6c70fa8/uv_enabled_config.ini -O /workspace/ComfyUI/user/default/ComfyUI-Manager/config.ini 2>&1 | tee -a /workspace/logs/comfyui.log
-
-    cd /workspace
-else
-    echo "ComfyUI already exists, skipping clone and setup..." | tee -a /workspace/logs/comfyui.log
-    # Create ComfyUI model directories if they don't exist yet
-    echo "Ensuring ComfyUI model directories exist..." | tee -a /workspace/logs/comfyui.log
-    mkdir -p /workspace/ComfyUI/models/{checkpoints,vae,unet,diffusion_models,text_encoders,loras,upscale_models,clip,controlnet,clip_vision,ipadapter,style_models}
-    mkdir -p /workspace/ComfyUI/custom_nodes
-    mkdir -p /workspace/ComfyUI/input
-    mkdir -p /workspace/ComfyUI/output
+# Clone Forge if not present
+if [ ! -e "$FORGE_PATH/webui.py" ]; then
+    echo "Stable Diffusion WebUI Forge not found, installing..."
+    git clone --depth=1 https://github.com/lllyasviel/stable-diffusion-webui-forge "$FORGE_PATH"
 fi
 
-# Create log file if it doesn't exist
-touch /workspace/logs/comfyui.log
+# Create Forge model directories
+mkdir -p "$FORGE_PATH/models/Stable-diffusion"
+mkdir -p "$FORGE_PATH/models/VAE"
+mkdir -p "$FORGE_PATH/models/Lora"
+mkdir -p "$FORGE_PATH/models/ESRGAN"
+mkdir -p "$FORGE_PATH/models/ControlNet"
+mkdir -p "$FORGE_PATH/models/text_encoder"
 
-# Function to check if a model exists
-check_model() {
+# Function to download a model if missing
+download_model() {
     local url=$1
+    local dest=$2
     local filename=$(basename "$url")
-    # Search for the file in all model directories
-    find /workspace/ComfyUI/models -type f -name "$filename" | grep -q .
-    return $?
+    if [ ! -f "$dest/$filename" ]; then
+        echo "Downloading $filename to $dest..."
+        wget -O "$dest/$filename" "$url"
+    else
+        echo "$filename already exists in $dest, skipping download."
+    fi
 }
 
-# Initialize GPU - Do this before downloading models to ensure GPU is ready
-echo "Initializing GPU..."
-if ! check_gpu; then
-    echo "WARNING: GPU initialization failed. Services may not function properly."
-else
-    reset_gpu
+# Download models as per models_config.json
+CONFIG_FILE="/workspace/models_config.json"
+if [ -f "$CONFIG_FILE" ]; then
+    echo "Processing models_config.json for Forge..."
+    # Stable-diffusion (checkpoints)
+    for url in $(jq -r '."Stable-diffusion"[]' "$CONFIG_FILE"); do
+        download_model "$url" "$FORGE_PATH/models/Stable-diffusion"
+    done
+    # VAE
+    for url in $(jq -r '.VAE[]' "$CONFIG_FILE"); do
+        download_model "$url" "$FORGE_PATH/models/VAE"
+    done
+    # Lora
+    for url in $(jq -r '.Lora[]' "$CONFIG_FILE"); do
+        download_model "$url" "$FORGE_PATH/models/Lora"
+    done
+    # ESRGAN (upscale models)
+    for url in $(jq -r '.ESRGAN[]' "$CONFIG_FILE"); do
+        download_model "$url" "$FORGE_PATH/models/ESRGAN"
+    done
+    # ControlNet
+    for url in $(jq -r '.ControlNet[]' "$CONFIG_FILE"); do
+        download_model "$url" "$FORGE_PATH/models/ControlNet"
+    done
+    # text_encoder
+    for url in $(jq -r '.text_encoder[]' "$CONFIG_FILE"); do
+        download_model "$url" "$FORGE_PATH/models/text_encoder"
+    done
 fi
-
-# Check if models from config exist
-missing_models=false
-if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
-    while IFS= read -r url; do
-        if [[ "$url" =~ ^[[:space:]]*\"https?:// ]]; then
-            # Remove quotes, commas and whitespace
-            url=$(echo "$url" | tr -d '",' | xargs)
-            if ! check_model "$url"; then
-                echo "Missing model: $url"
-                missing_models=true
-            fi
-        fi
-    done <"$CONFIG_FILE"
-
-    # Download models if any are missing and downloads aren't skipped
-    if [ "$missing_models" = true ] && [ "$SKIP_MODEL_DOWNLOAD" != "true" ]; then
-        echo "Some required models are missing. Downloading models..." | tee -a /workspace/logs/comfyui.log
-        python /notebooks/download_models.py 2>&1 | tee -a $LOG_PATH
-    else
-        echo "All required models present or download skipped..." | tee -a /workspace/logs/comfyui.log
-    fi
-else
-    echo "No valid models_config.json found. Skipping model checks..."
-fi
-
-# Start services with proper sequencing
-echo "Starting services..."
 
 # Start Jupyter with GPU isolation
 CUDA_VISIBLE_DEVICES="" jupyter lab --allow-root --no-browser --ip=0.0.0.0 --port=8888 --NotebookApp.token="" --NotebookApp.password="" --notebook-dir=/workspace &
@@ -302,21 +226,15 @@ CUDA_VISIBLE_DEVICES="" jupyter lab --allow-root --no-browser --ip=0.0.0.0 --por
 # Give other services time to initialize
 sleep 5
 
-# Start ComfyUI with full GPU access
-cd /workspace/ComfyUI
-# Clear any existing CUDA cache
-python -c "import torch; torch.cuda.empty_cache()" || true
-# Add a clear marker in the log file
-echo "====================================================================" | tee -a /workspace/logs/comfyui.log
-echo "============ ComfyUI STARTING $(date) ============" | tee -a /workspace/logs/comfyui.log
-echo "====================================================================" | tee -a /workspace/logs/comfyui.log
-# Start ComfyUI with proper logging
-echo "Starting ComfyUI on port 8188..." | tee -a /workspace/logs/comfyui.log
-# Use unbuffer to ensure output is line-buffered for better real-time logging
-python main.py --listen 0.0.0.0 --port 8188 2>&1 | tee -a /workspace/logs/comfyui.log &
-# Record the PID of the ComfyUI process
-COMFY_PID=$!
-echo "ComfyUI started with PID: $COMFY_PID" | tee -a /workspace/logs/comfyui.log
+# Start Forge with full GPU access
+cd "$FORGE_PATH"
+echo "===================================================================="
+echo "============ Stable Diffusion WebUI Forge STARTING $(date) ============"
+echo "===================================================================="
+# Start Forge with proper logging
+python webui.py --listen 0.0.0.0 --port 7860 2>&1 | tee -a /workspace/logs/forge.log &
+FORGE_PID=$!
+echo "Forge started with PID: $FORGE_PID" | tee -a /workspace/logs/forge.log
 
 # Wait for all processes
 wait

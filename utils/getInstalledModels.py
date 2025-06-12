@@ -26,13 +26,6 @@ def get_installed_models():
             print("Warning: models_config.json not found in expected locations")
             return {}
 
-        # Check if ComfyUI/models directory exists before trying to check file existence
-        comfyui_models_dir = "/workspace/ComfyUI/models"
-        if not os.path.exists(comfyui_models_dir):
-            print(
-                f"Note: {comfyui_models_dir} doesn't exist yet. Will show models from config only."
-            )
-
         # Process each model category
         for category, urls in model_config.items():
             if urls:  # Only process non-empty categories
@@ -45,7 +38,7 @@ def get_installed_models():
                     model_files.append(
                         {
                             "name": filename,
-                            "path": f"/workspace/ComfyUI/models/{category}/{filename}",
+                            "path": f"/workspace/stable-diffusion-webui-forge/models/{category}/{filename}",
                             "url": url,
                         }
                     )

@@ -95,7 +95,31 @@ COPY models_config.json /workspace
 RUN chmod +x *.sh
 
 # Expose ports
-EXPOSE 8188 8888 8189
+EXPOSE 8888 8189
+
+# Clone Stable Diffusion WebUI Forge
+RUN git clone --depth=1 https://github.com/lllyasviel/stable-diffusion-webui-forge /workspace/stable-diffusion-webui-forge
+
+# Install Forge dependencies
+WORKDIR /workspace/stable-diffusion-webui-forge
+RUN uv pip install xformers!=0.0.18 torch==2.5.1 torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
+RUN uv pip install -r requirements_versions.txt
+
+# Clone extensions
+RUN git clone --depth=1 https://github.com/zanllp/sd-webui-infinite-image-browsing /workspace/stable-diffusion-webui-forge/extensions/sd-webui-infinite-image-browsing
+RUN git clone --depth=1 https://github.com/Coyote-A/ultimate-upscale-for-automatic1111 /workspace/stable-diffusion-webui-forge/extensions/ultimateSD
+RUN git clone --depth=1 https://github.com/Gourieff/sd-webui-reactor-sfw /workspace/stable-diffusion-webui-forge/extensions/sd-webui-reactor-sfw
+
+# Install extension requirements
+WORKDIR /workspace/stable-diffusion-webui-forge/extensions/sd-webui-infinite-image-browsing
+RUN uv pip install -r requirements.txt
+WORKDIR /workspace/stable-diffusion-webui-forge/extensions/sd-webui-reactor-sfw
+RUN uv pip install -r requirements.txt
+
+WORKDIR /notebooks
+
+# Expose Forge's default port
+EXPOSE 7860
 
 CMD ["./start.sh"]
 

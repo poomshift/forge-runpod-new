@@ -33,8 +33,8 @@ from workers.tailLogsFile import tail_log_file, tlf_worker
 
 # Initialize FastAPI with disable docs url (swagger and redoc)
 app = FastAPI(
-    title="ComfyUI Log Viewer",
-    description="ComfyUI Runpod Log Viewer and Model Downloader",
+    title="Forge Log Viewer",
+    description="Stable Diffusion WebUI Forge Runpod Log Viewer and Model Downloader",
     docs_url=None,
     redoc_url=None,
 )
@@ -47,8 +47,8 @@ templates = Jinja2Templates(directory="templates")
 
 
 def create_output_zip():
-    """Create a zip file of the ComfyUI output directory"""
-    output_dir = os.path.join("/workspace", "ComfyUI", "output")
+    """Create a zip file of the Forge output directory"""
+    output_dir = os.path.join("/workspace", "stable-diffusion-webui-forge", "outputs")
     memory_file = io.BytesIO()
 
     with zipfile.ZipFile(memory_file, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -186,7 +186,7 @@ async def index(request: Request):
         # In RunPod, we use the public FQDN provided by RunPod for the proxy
         # Format: https://{pod_id}-{port}.proxy.runpod.net
         pod_id = os.environ.get("RUNPOD_POD_ID", "")
-        proxy_port = "8188"  # ComfyUI port
+        proxy_port = "7860"  # Forge port
         jupyter_port = "8888"  # JupyterLab port
         proxy_host = f"{pod_id}-{proxy_port}.proxy.runpod.net"
         jupyter_host = f"{pod_id}-{jupyter_port}.proxy.runpod.net"
@@ -195,7 +195,7 @@ async def index(request: Request):
     else:
         # For local development or other environments
         proxy_host = request.url.hostname
-        proxy_port = "8188"
+        proxy_port = "7860"
         jupyter_port = "8888"
         proxy_url = f"http://{proxy_host}:{proxy_port}"
         jupyter_url = f"http://{proxy_host}:{jupyter_port}"

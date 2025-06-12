@@ -1,7 +1,15 @@
-# ComfyUI RunPod Template
+# Stable Diffusion WebUI Forge RunPod Template
 
-A streamlined and feature-rich RunPod template for ComfyUI with an enhanced user interface, model management, and custom nodes.
+This project is a RunPod template for deploying [Stable Diffusion WebUI Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge) with:
+- Automated model downloading via `models_config.json` (models are placed in Forge's expected folders)
+- Jupyter Lab for notebooks
+- Log viewer for monitoring
 
+## Usage
+- Models are specified in `models_config.json` and will be downloaded to the correct folders for Forge.
+- Jupyter Lab is available on port 8888.
+- Forge UI is available on port 7860.
+- Log viewer is available on port 8189.
 
 ## 🌟 Features
 

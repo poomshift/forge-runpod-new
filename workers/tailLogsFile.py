@@ -9,7 +9,7 @@ from utils.formatLogLine import format_log_line
 
 def tail_log_file():
     """Continuously tail the log file and update the buffer"""
-    log_file = os.path.join("/", "workspace", "logs", "comfyui.log")
+    log_file = os.path.join("/", "workspace", "logs", "forge.log")
 
     if not os.path.exists(log_file):
         os.makedirs("/","workspace","logs", exist_ok=True)

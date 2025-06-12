@@ -17,7 +17,7 @@ async def download_from_civitai_async(url, api_key=None, model_type="loras"):
         {"type": "download", "data": {"status": "downloading", "source": "civitai"}}
     )
 
-    model_dir = os.path.join("/workspace", "ComfyUI", model_path)
+    model_dir = os.path.join("/workspace", "stable-diffusion-webui-forge", model_path)
     os.makedirs(model_dir, exist_ok=True)
 
     download_url = url
@@ -94,7 +94,7 @@ async def download_from_huggingface_async(url, model_type="loras"):
     else:
         model_path = os.path.join("models", model_type)
 
-    model_dir = os.path.join("/workspace", "ComfyUI", model_path)
+    model_dir = os.path.join("/workspace", "stable-diffusion-webui-forge", model_path)
     os.makedirs(model_dir, exist_ok=True)
 
     await broadcast_to_websockets(
@@ -178,7 +178,7 @@ async def download_from_googledrive_async(
     else:
         model_path = os.path.join("models", model_type)
 
-    model_dir = os.path.join("/workspace", "ComfyUI", model_path)
+    model_dir = os.path.join("/workspace", "stable-diffusion-webui-forge", model_path)
     os.makedirs(model_dir, exist_ok=True)
 
     await broadcast_to_websockets(
