@@ -232,7 +232,7 @@ echo "===================================================================="
 echo "============ Stable Diffusion WebUI Forge STARTING $(date) ============"
 echo "===================================================================="
 # Start Forge with proper logging
-python launch.py --listen 0.0.0.0 --port 7860 2>&1 | tee -a /workspace/logs/forge.log &
+python launch.py --listen --port 7860 2>&1 | tee -a /workspace/logs/forge.log &
 FORGE_PID=$!
 echo "Forge started with PID: $FORGE_PID" | tee -a /workspace/logs/forge.log
 
