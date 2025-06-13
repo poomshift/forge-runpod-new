@@ -3,7 +3,7 @@
 # default environment variable
 
 export UPDATE_ON_START=${UPDATE_ON_START:-"false"}
-export MODELS_CONFIG_URL=${MODELS_CONFIG_URL:-"https://raw.githubusercontent.com/poomshift/forge-runpod-new/refs/heads/main/models_config.json"}
+export MODELS_CONFIG_URL=${MODELS_CONFIG_URL:-"https://raw.githubusercontent.com/poomshift/forge-runpod-new/refs/heads/main/models_config.json"} 
 export SKIP_MODEL_DOWNLOAD=${SKIP_MODEL_DOWNLOAD:-"false"}
 export FORCE_MODEL_DOWNLOAD=${FORCE_MODEL_DOWNLOAD:-"false"}
 export LOG_PATH=${LOG_PATH:-"/notebooks/backend.log"}
