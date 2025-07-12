@@ -119,7 +119,7 @@ RUN pip install -r requirements.txt
 WORKDIR /workspace/stable-diffusion-webui-forge/extensions/sd-webui-reactor-sfw
 RUN pip install -r requirements.txt
 
-COPY env /workspace/stable-diffusion-webui-forge/extensions/sd-webui-infinite-image-browsing
+COPY .env /workspace/stable-diffusion-webui-forge/extensions/sd-webui-infinite-image-browsing
 
 WORKDIR /notebooks
 
