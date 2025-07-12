@@ -106,6 +106,8 @@ WORKDIR /workspace/stable-diffusion-webui-forge
 RUN uv pip install xformers!=0.0.18 torch==2.5.1 torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
 RUN uv pip install -r requirements_versions.txt
 
+COPY patch_basic.py /workspace/stable-diffusion-webui-forge/modules_forge
+
 # Clone extensions
 RUN git clone --depth=1 https://github.com/zanllp/sd-webui-infinite-image-browsing /workspace/stable-diffusion-webui-forge/extensions/sd-webui-infinite-image-browsing
 RUN git clone --depth=1 https://github.com/Coyote-A/ultimate-upscale-for-automatic1111 /workspace/stable-diffusion-webui-forge/extensions/ultimateSD
