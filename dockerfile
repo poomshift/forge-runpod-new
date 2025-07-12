@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN add-apt-repository ppa:deadsnakes/ppa && \
     apt-get update --yes && \
-    apt-get install --yes --no-install-recommends python3-pip "python${PYTHON_VERSION}" "python${PYTHON_VERSION}-venv" && \
+    apt-get install --yes --no-install-recommends python3-pip "python${PYTHON_VERSION}" "python${PYTHON_VERSION}-venv" "python${PYTHON_VERSION}-dev" && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
