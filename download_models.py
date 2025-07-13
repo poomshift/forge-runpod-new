@@ -29,7 +29,7 @@ stdout_handler.setFormatter(
 logger.addHandler(stdout_handler)
 
 # Global semaphore to limit concurrent downloads
-download_semaphore = asyncio.Semaphore(5)
+download_semaphore = asyncio.Semaphore(3)
 
 # Model category to Forge folder mapping
 CATEGORY_TO_PATH = {
